@@ -77,11 +77,11 @@ struct PersistentPoint {
     var point: CGPoint = .zero
     var lostFrames: Int = 0
     var isInitialized: Bool = false
-    var maxLostFrames: Int = 10 // Aumentado de 5 para 10 para tolerância extra durante pinch
+    var maxLostFrames: Int = 15 // Aumentado para tolerância extra a oclusões (ex: dedos sobrepostos)
     
     mutating func update(newPoint: CGPoint?, confidence: Float) {
-        // Confiança otimizada para 0.08 para manter rastreamento em baixa luminosidade
-        if let p = newPoint, confidence > 0.08 {
+        // Confiança otimizada para 0.3 para evitar falsos positivos
+        if let p = newPoint, confidence > 0.3 {
             self.point = p
             self.lostFrames = 0
             self.isInitialized = true
@@ -211,11 +211,11 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let sessaoCaptura = AVCaptureSession()
     private let sequenceHandler = VNSequenceRequestHandler()
     
-    // Parâmetros calibráveis de Pinça e Aproximação
-    private var limiarClique: CGFloat = 0.28
-    private var limiarDesbloqueio: CGFloat = 0.40
-    private var limiarToqueFisico: CGFloat = 0.12
-    private var limiarLiberacao: CGFloat = 0.38
+    // Parâmetros calibráveis de Pinça e Aproximação refinados
+    private var limiarClique: CGFloat = 0.34        // Congela o cursor (solicitado pelo usuário)
+    private var limiarDesbloqueio: CGFloat = 0.45   // Navegação normal (dedo indicador esticado)
+    private var limiarToqueFisico: CGFloat = 0.10   // Exige que as pontas se toquem (solicitado pelo usuário)
+    private var limiarLiberacao: CGFloat = 0.15     // Solta o clique rapidamente ao separar um pouquinho
     
 
     // Filtro Passa-Baixa de pré-processamento quase sem lag (alpha = 0.95 para responsividade extrema)
@@ -223,10 +223,10 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let preFiltroY = LowPassFilter()
     
     // Filtro One Euro ajustado para eliminar tremores (minCutoff super baixo):
-    // minCutoff = 0.10 deixa estável para mirar em bordas de janelas
-    // beta = 5.0 compensa para não ficar tão elástico/lento
-    private let filtroX = OneEuroFilter(minCutoff: 0.10, beta: 5.0, dCutoff: 1.0)
-    private let filtroY = OneEuroFilter(minCutoff: 0.10, beta: 5.0, dCutoff: 1.0)
+    // minCutoff = 0.05 para máxima estabilidade (mira fixa).
+    // beta = 6.0 compensa para velocidade de resposta
+    private let filtroX = OneEuroFilter(minCutoff: 0.05, beta: 6.0, dCutoff: 1.0)
+    private let filtroY = OneEuroFilter(minCutoff: 0.05, beta: 6.0, dCutoff: 1.0)
     
     // Filtros passa-baixa rápidos para o modo Arraste (alpha = 0.55 para snappiness imediato)
     private let dragFilterX = LowPassFilter()
@@ -351,6 +351,19 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 let dim = CMVideoFormatDescriptionGetDimensions(formato.formatDescription)
                 print("🟢 Câmera ativa: \(dim.width)x\(dim.height) @ 60 FPS")
             }
+            
+            // --- DESATIVAÇÃO DO CENTER STAGE ---
+            // Impede que a câmera dê zoom ou siga o rosto do usuário, garantindo que as proporções
+            // da mão fiquem estáticas em relação à tela e o cursor não dê "saltos".
+            if #available(macOS 12.0, *) {
+                if AVCaptureDevice.isCenterStageEnabled {
+                    AVCaptureDevice.centerStageControlMode = .cooperative
+                    AVCaptureDevice.isCenterStageEnabled = false
+                    print("🚫 Center Stage desativado para garantir precisão do cursor.")
+                }
+            }
+            // -----------------------------------
+            
             dispositivo.unlockForConfiguration()
         } catch {
             print("❌ Erro ao configurar formato da câmera.")
@@ -452,7 +465,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
-    private func iniciarClique(agora: TimeInterval, wrist: CGPoint, indexTip: CGPoint, thumbTip: CGPoint) {
+    private func iniciarClique(agora: TimeInterval, wrist: CGPoint, indexTip: CGPoint, thumbTip: CGPoint, indexMCP: CGPoint) {
         let finalIsRightClick = false
         
         let intervalo = agora - lastClickReleaseTime
@@ -474,8 +487,10 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
         
         self.isRightClickActive = finalIsRightClick
-        let pinchCenter = CGPoint(x: (indexTip.x + thumbTip.x) / 2.0, y: (indexTip.y + thumbTip.y) / 2.0)
-        let rawMapped = obterPontoMapeado(pontoCam: pinchCenter, tela: telaBounds)
+        // ANCORAGEM PELO OSSO DO INDICADOR:
+        // A ponta dos dedos (pinchCenter) se move quando você abre a mão para soltar o clique.
+        // A base do indicador (indexMCP) fica praticamente imobilizada, garantindo que o cursor não pule no final!
+        let rawMapped = obterPontoMapeado(pontoCam: indexMCP, tela: telaBounds)
         pinchOffset = CGPoint(x: frozenPosition.x - rawMapped.x, y: frozenPosition.y - rawMapped.y)
         
         dragActive = false
@@ -601,15 +616,15 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                     let mappedPoint = obterPontoMapeado(pontoCam: pinchCenter, tela: telaBounds)
                     
                     // --- LÓGICA DE DESACELERAÇÃO GRAVITACIONAL ---
-                    // Começa a frear aos 0.45, e freia quase totalmente quando chega perto de 0.28 (limiarClique)
+                    // Começa a frear aos 0.45 (indicador apontando), e freia quase totalmente quando chega perto de 0.34 (pausa antecipada)
                     let maxRatio: CGFloat = 0.45
-                    let minRatio: CGFloat = 0.28
+                    let minRatio: CGFloat = 0.34
                     let clampedRatio = max(minRatio, min(maxRatio, ratio))
                     let normalized = (clampedRatio - minRatio) / (maxRatio - minRatio) // 0.0 (perto) a 1.0 (longe)
                     
                     // Usando uma curva não-linear (potência) para que fique pesado mais rápido no final
-                    let dynamicCutoff = 0.001 + (1.50 - 0.001) * (normalized * normalized) // 1.50 para agilidade extrema com a mão aberta!
-                    let dynamicBeta = 0.0 + (5.0 - 0.0) * normalized // Zera o momentum quando próximo do clique
+                    let dynamicCutoff = 0.001 + (1.80 - 0.001) * (normalized * normalized) // 1.80 para agilidade extrema com a mão aberta!
+                    let dynamicBeta = 0.0 + (6.0 - 0.0) * normalized // Zera o momentum quando próximo do clique
                     filtroX.minCutoff = dynamicCutoff
                     filtroY.minCutoff = dynamicCutoff
                     filtroX.beta = dynamicBeta
@@ -642,7 +657,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 currentState = .cliqueArraste
                 frozenPosition = posicaoCursorAtual
                 historicoPosicoes.removeAll()
-                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip)
+                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip, indexMCP: pIndexMCP)
             }
             
         case .preClique: // Estado 1 — Pré-Clique
@@ -668,7 +683,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
             } else if posture == .fullyBent {
                 currentState = .cliqueArraste
-                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip)
+                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip, indexMCP: pIndexMCP)
             }
             
         case .cliqueArraste: // Estado 2 — Clique / Arraste
@@ -707,13 +722,14 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 }
                 
                 if dragActive {
-                    let pinchCenter = CGPoint(x: (pIndexTip.x + pThumbTip.x) / 2.0, y: (pIndexTip.y + pThumbTip.y) / 2.0)
-                    let rawMapped = obterPontoMapeado(pontoCam: pinchCenter, tela: telaBounds)
+                    // A base do indicador não abre e fecha durante o soltar, evitando aquele salto no final do arraste
+                    let rawMapped = obterPontoMapeado(pontoCam: pIndexMCP, tela: telaBounds)
                     let targetX = rawMapped.x + pinchOffset.x
                     let targetY = rawMapped.y + pinchOffset.y
                     
-                    let filteredX = dragFilterX.aplicar(valor: targetX, alpha: 0.55)
-                    let filteredY = dragFilterY.aplicar(valor: targetY, alpha: 0.55)
+                    // Alpha mega reduzido (de 0.55 para 0.18) para a mira ser pesada e exata enquanto seleciona texto!
+                    let filteredX = dragFilterX.aplicar(valor: targetX, alpha: 0.18)
+                    let filteredY = dragFilterY.aplicar(valor: targetY, alpha: 0.18)
                     
                     let clampedX = max(0, min(telaBounds.width, filteredX))
                     let clampedY = max(0, min(telaBounds.height, filteredY))
@@ -741,6 +757,12 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                         print("🔒 [ESTADO 1] Retornando para Pré-Clique (Manter mira congelada).")
                     }
                 } else {
+                    // O arraste acabou. Como solicitado, vamos emitir um clique direito automático
+                    // para abrir o menu de contexto (útil para copiar texto após selecionar).
+                    postMouseEvent(type: .rightMouseDown, point: posicaoCursorAtual, clickCount: 1, isRightClick: true)
+                    postMouseEvent(type: .rightMouseUp, point: posicaoCursorAtual, clickCount: 1, isRightClick: true)
+                    print("⚡️ [AUTO MENU] Clique direito disparado automaticamente após o arraste!")
+                    
                     currentState = .soltar
                     print("🛑 [ESTADO 3] Finalizando Drag.")
                 }

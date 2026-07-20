@@ -6,12 +6,24 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXCopyFilesBuildPhase section */
+		2B84DB88300D5BEF0028596E /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		2B2E1624300E7FAB00B3F705 /* HandCursorApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HandCursorApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2B84DB8A300D5BEF0028596E /* HandCursorApp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = HandCursorApp; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		2B2E1626300E7FAB00B3F705 /* HandCursorApp */ = {
+		2B84DB8C300D5BEF0028596E /* HandCursorApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = HandCursorApp;
 			sourceTree = "<group>";
@@ -19,7 +31,7 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		2B2E1621300E7FAB00B3F705 /* Frameworks */ = {
+		2B84DB87300D5BEF0028596E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -29,18 +41,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		2B2E161B300E7FAB00B3F705 = {
+		2B84DB81300D5BEF0028596E = {
 			isa = PBXGroup;
 			children = (
-				2B2E1626300E7FAB00B3F705 /* HandCursorApp */,
-				2B2E1625300E7FAB00B3F705 /* Products */,
+				2B84DB8C300D5BEF0028596E /* HandCursorApp */,
+				2B84DB8B300D5BEF0028596E /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		2B2E1625300E7FAB00B3F705 /* Products */ = {
+		2B84DB8B300D5BEF0028596E /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2B2E1624300E7FAB00B3F705 /* HandCursorApp.app */,
+				2B84DB8A300D5BEF0028596E /* HandCursorApp */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,74 +60,64 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		2B2E1623300E7FAB00B3F705 /* HandCursorApp */ = {
+		2B84DB89300D5BEF0028596E /* HandCursorApp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2B2E162F300E7FAB00B3F705 /* Build configuration list for PBXNativeTarget "HandCursorApp" */;
+			buildConfigurationList = 2B84DB91300D5BEF0028596E /* Build configuration list for PBXNativeTarget "HandCursorApp" */;
 			buildPhases = (
-				2B2E1620300E7FAB00B3F705 /* Sources */,
-				2B2E1621300E7FAB00B3F705 /* Frameworks */,
-				2B2E1622300E7FAB00B3F705 /* Resources */,
+				2B84DB86300D5BEF0028596E /* Sources */,
+				2B84DB87300D5BEF0028596E /* Frameworks */,
+				2B84DB88300D5BEF0028596E /* CopyFiles */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				2B2E1626300E7FAB00B3F705 /* HandCursorApp */,
+				2B84DB8C300D5BEF0028596E /* HandCursorApp */,
 			);
 			name = HandCursorApp;
 			packageProductDependencies = (
 			);
 			productName = HandCursorApp;
-			productReference = 2B2E1624300E7FAB00B3F705 /* HandCursorApp.app */;
-			productType = "com.apple.product-type.application";
+			productReference = 2B84DB8A300D5BEF0028596E /* HandCursorApp */;
+			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		2B2E161C300E7FAB00B3F705 /* Project object */ = {
+		2B84DB82300D5BEF0028596E /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
-					2B2E1623300E7FAB00B3F705 = {
+					2B84DB89300D5BEF0028596E = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};
 			};
-			buildConfigurationList = 2B2E161F300E7FAB00B3F705 /* Build configuration list for PBXProject "HandCursorApp" */;
+			buildConfigurationList = 2B84DB85300D5BEF0028596E /* Build configuration list for PBXProject "HandCursorApp" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = 2B2E161B300E7FAB00B3F705;
+			mainGroup = 2B84DB81300D5BEF0028596E;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 2B2E1625300E7FAB00B3F705 /* Products */;
+			productRefGroup = 2B84DB8B300D5BEF0028596E /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				2B2E1623300E7FAB00B3F705 /* HandCursorApp */,
+				2B84DB89300D5BEF0028596E /* HandCursorApp */,
 			);
 		};
 /* End PBXProject section */
 
-/* Begin PBXResourcesBuildPhase section */
-		2B2E1622300E7FAB00B3F705 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
-		2B2E1620300E7FAB00B3F705 /* Sources */ = {
+		2B84DB86300D5BEF0028596E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -125,7 +127,7 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		2B2E162D300E7FAB00B3F705 /* Debug */ = {
+		2B84DB8F300D5BEF0028596E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -189,7 +191,7 @@
 			};
 			name = Debug;
 		};
-		2B2E162E300E7FAB00B3F705 /* Release */ = {
+		2B84DB90300D5BEF0028596E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -245,93 +247,31 @@
 			};
 			name = Release;
 		};
-		2B2E1630300E7FAB00B3F705 /* Debug */ = {
+		2B84DB92300D5BEF0028596E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = RKZV7RAYQB;
-				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Precisamos da câmera para rastrear o movimento das suas mãos e controlar o cursor.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = HandCursorApp.HandCursorApp;
+				INFOPLIST_FILE = HandCursorApp/Info.plist;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		2B2E1631300E7FAB00B3F705 /* Release */ = {
+		2B84DB93300D5BEF0028596E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = RKZV7RAYQB;
-				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Precisamos da câmera para rastrear o movimento das suas mãos e controlar o cursor.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = HandCursorApp.HandCursorApp;
+				INFOPLIST_FILE = HandCursorApp/Info.plist;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -340,25 +280,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2B2E161F300E7FAB00B3F705 /* Build configuration list for PBXProject "HandCursorApp" */ = {
+		2B84DB85300D5BEF0028596E /* Build configuration list for PBXProject "HandCursorApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2B2E162D300E7FAB00B3F705 /* Debug */,
-				2B2E162E300E7FAB00B3F705 /* Release */,
+				2B84DB8F300D5BEF0028596E /* Debug */,
+				2B84DB90300D5BEF0028596E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		2B2E162F300E7FAB00B3F705 /* Build configuration list for PBXNativeTarget "HandCursorApp" */ = {
+		2B84DB91300D5BEF0028596E /* Build configuration list for PBXNativeTarget "HandCursorApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				2B2E1630300E7FAB00B3F705 /* Debug */,
-				2B2E1631300E7FAB00B3F705 /* Release */,
+				2B84DB92300D5BEF0028596E /* Debug */,
+				2B84DB93300D5BEF0028596E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 2B2E161C300E7FAB00B3F705 /* Project object */;
+	rootObject = 2B84DB82300D5BEF0028596E /* Project object */;
 }

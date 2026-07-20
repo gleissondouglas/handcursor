@@ -9,6 +9,7 @@ Thumbs.db
 
 # Xcode
 build/
+DerivedData/
 *.pbxuser
 !default.pbxuser
 *.mode1v3
@@ -29,7 +30,7 @@ project.xcworkspace
 # Swift Package Manager
 .build/
 
-# Executables
-HandCursorApp/HandCursorApp/HandCursor
+# Executables / DMGs
+*.dmg
 
 IDEIAS_FUTURAS.md
