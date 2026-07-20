@@ -106,6 +106,8 @@ class HandTracker {
     var wrist = PersistentPoint()
     var pinkyMCP = PersistentPoint()
     var middleTip = PersistentPoint()
+    var ringTip = PersistentPoint()
+    var pinkyTip = PersistentPoint()
     
     func update(from observation: VNHumanHandPoseObservation) {
         let rawIdxTip = try? observation.recognizedPoint(.indexTip)
@@ -114,6 +116,8 @@ class HandTracker {
         let rawWrist = try? observation.recognizedPoint(.wrist)
         let rawPinkyMCP = try? observation.recognizedPoint(.littleMCP)
         let rawMiddleTip = try? observation.recognizedPoint(.middleTip)
+        let rawRingTip = try? observation.recognizedPoint(.ringTip)
+        let rawPinkyTip = try? observation.recognizedPoint(.littleTip)
         
         indexTip.update(newPoint: rawIdxTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawIdxTip?.confidence ?? 0.0)
         indexMCP.update(newPoint: rawIdxMCP.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawIdxMCP?.confidence ?? 0.0)
@@ -121,6 +125,8 @@ class HandTracker {
         wrist.update(newPoint: rawWrist.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawWrist?.confidence ?? 0.0)
         pinkyMCP.update(newPoint: rawPinkyMCP.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawPinkyMCP?.confidence ?? 0.0)
         middleTip.update(newPoint: rawMiddleTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawMiddleTip?.confidence ?? 0.0)
+        ringTip.update(newPoint: rawRingTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawRingTip?.confidence ?? 0.0)
+        pinkyTip.update(newPoint: rawPinkyTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawPinkyTip?.confidence ?? 0.0)
     }
     
     var isDataComplete: Bool {
@@ -141,6 +147,7 @@ enum AppState: Int {
     case preClique = 1       // Estado 1: Aproximação inicial (mira congelada no pixel atual)
     case cliqueArraste = 2   // Estado 2: Dedos tocando em pinça (MouseDown -> clique ou arraste)
     case soltar = 3          // Estado 3: Retorno à navegação (mouseUp)
+    case scroll = 4          // Estado 4: Modo Joystick (Scroll com 2 dedos)
 }
 
 enum FingerPosture: String {
@@ -150,7 +157,54 @@ enum FingerPosture: String {
 }
 
 // =========================================================================
-// INTERFACE GRÁFICA (Removida)
+// INTERFACE GRÁFICA FLUTUANTE (OVERLAY)
+// =========================================================================
+
+class OverlayController {
+    static let shared = OverlayController()
+    private var window: NSWindow!
+    private var label: NSTextField!
+    
+    private init() {
+        let screenRect = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
+        let rect = NSRect(x: screenRect.midX - 100, y: screenRect.minY + 100, width: 200, height: 40)
+        
+        window = NSWindow(contentRect: rect, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = NSColor.black.withAlphaComponent(0.7)
+        window.level = .floating // Fica no topo de tudo
+        window.ignoresMouseEvents = true
+        window.hasShadow = true
+        window.isMovableByWindowBackground = false
+        
+        if let view = window.contentView {
+            view.wantsLayer = true
+            view.layer?.cornerRadius = 20
+        }
+        
+        label = NSTextField(labelWithString: "Modo Scroll")
+        label.textColor = .white
+        label.font = NSFont.systemFont(ofSize: 18, weight: .bold)
+        label.alignment = .center
+        label.isBezeled = false
+        label.drawsBackground = false
+        label.isEditable = false
+        label.isSelectable = false
+        label.frame = NSRect(x: 0, y: 8, width: 200, height: 24)
+        window.contentView?.addSubview(label)
+    }
+    
+    func show() {
+        DispatchQueue.main.async { self.window.orderFront(nil) }
+    }
+    
+    func hide() {
+        DispatchQueue.main.async { self.window.orderOut(nil) }
+    }
+}
+
+// =========================================================================
+// 4. CONTROLADOR PRINCIPAL DO APLICATIVO
 // =========================================================================
 
 class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -204,6 +258,13 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private var dragActive: Bool = false
     private var dragSensitivity: CGFloat = 2.5
     
+    // Controle do Joystick de Scroll
+    private var scrollAnchorY: CGFloat = 0.0
+    private var lastScrollEventTime: TimeInterval = 0.0
+    private var timeEnteredScrollPosture: TimeInterval = 0.0
+    private var scrollFrames: Int = 0
+    private var nonScrollFrames: Int = 0
+    
     private let telaBounds = CGDisplayBounds(CGMainDisplayID())
     
     private lazy var requisicao: VNDetectHumanHandPoseRequest = {
@@ -221,7 +282,13 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         print("- Congelamento Ultra Precoce (ratio < 0.38) para Mira Fixa")
         print("- Arraste rápido (Drag Filter com alpha 0.55)")
         print("- Janela de Duplo Clique de 0.5s para abertura de arquivos")
+        print("- Scroll Joystick: Levante os 2 dedos (indicador e médio) juntos!")
         print("========================================================\n")
+        
+        // Inicializa a UI na thread principal
+        DispatchQueue.main.async {
+            _ = OverlayController.shared
+        }
         
 
         let status = AVCaptureDevice.authorizationStatus(for: .video)
@@ -460,11 +527,57 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         
         let ratio = handScale > 0.01 ? (dIndexThumb / handScale) : 1.0
         
+        var isScrollGestureRaw = false
+        if let pMiddleTip = tracker.middleTip.getPoint(),
+           let pRingTip = tracker.ringTip.getPoint(),
+           let pPinkyTip = tracker.pinkyTip.getPoint() {
+            let dIndexWrist = distance(pIndexTip, pWrist)
+            let dMiddleWrist = distance(pMiddleTip, pWrist)
+            let dRingWrist = distance(pRingTip, pWrist)
+            let dPinkyWrist = distance(pPinkyTip, pWrist)
+            let dThumbWrist = distance(pThumbTip, pWrist)
+            
+            // Heurística de "Mão de PARE" (Palma aberta de frente para a câmera).
+            // A Inteligência Artificial mapeia perfeitamente as juntas nessa posição.
+            // Todos os dedos devem estar esticados (distância grande do pulso)
+            let isStopSign = dIndexWrist > handScale * 1.0 &&
+                             dMiddleWrist > handScale * 1.0 &&
+                             dRingWrist > handScale * 0.9 &&
+                             dPinkyWrist > handScale * 0.8 &&
+                             dThumbWrist > handScale * 0.9
+            
+            isScrollGestureRaw = isStopSign
+            
+            if isScrollGestureRaw {
+                if scrollFrames == 0 {
+                    timeEnteredScrollPosture = agora
+                }
+                scrollFrames += 1
+                nonScrollFrames = 0
+            } else {
+                nonScrollFrames += 1
+                scrollFrames = 0
+            }
+        }
+        
+        let isScrollPosture = scrollFrames > 3
+        let shouldExitScroll = nonScrollFrames > 5
+        let isScrollGestureActive = isScrollPosture && (agora - timeEnteredScrollPosture >= 1.0)
+        
         let posture = obterEstadoDedoDebounced(ratio: ratio)
         logEstado(ratio: ratio, posture: posture)
         
         switch currentState {
         case .navegacao: // Estado 0 — Navegação Livre
+            if isScrollGestureActive {
+                currentState = .scroll
+                let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+                scrollAnchorY = mappedPoint.y
+                OverlayController.shared.show()
+                print("↕️ [ESTADO 4] Entrando no Modo Scroll (Joystick)")
+                return
+            }
+            
             if posture == .extended {
                 // Reduzido para 0.35s! Libera a mira super rápido após soltar o clique, dando agilidade.
                 if agora - lastClickReleaseTime <= 0.35 && lastClickReleaseTime > 0 {
@@ -640,6 +753,33 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             filtroX.travarPosicao(posicaoCursorAtual.x)
             filtroY.travarPosicao(posicaoCursorAtual.y)
             print("☝️ [ESTADO 0] Retornando para Navegação após Soltar.")
+            
+        case .scroll: // Estado 4 — Modo Scroll
+            if shouldExitScroll {
+                currentState = .navegacao
+                OverlayController.shared.hide()
+                print("☝️ [ESTADO 0] Saindo do Modo Scroll")
+            } else {
+                let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+                let deltaY = scrollAnchorY - mappedPoint.y // Positivo = Mão subiu = Scroll UP
+                
+                // Zona morta de 20 pixels para não rolar se a mão estiver parada
+                if abs(deltaY) > 20 {
+                    if agora - lastScrollEventTime > 0.04 { // 25 Hz (suavidade extrema)
+                        let rawDelta = deltaY - (deltaY > 0 ? 20 : -20)
+                        let magnitude = abs(rawDelta)
+                        
+                        // Curva Quadrática: Controle microscópico perto do centro, velocidade hiper-rápida nas pontas!
+                        let speed = (magnitude * magnitude) * 0.003
+                        let scrollSpeed = deltaY > 0 ? -speed : speed
+                        
+                        if let scrollEvent = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: Int32(scrollSpeed), wheel2: 0, wheel3: 0) {
+                            scrollEvent.post(tap: CGEventTapLocation.cghidEventTap)
+                        }
+                        lastScrollEventTime = agora
+                    }
+                }
+            }
         }
     }
     
