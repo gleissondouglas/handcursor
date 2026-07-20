@@ -24,7 +24,7 @@ class LowPassFilter {
 }
 
 class OneEuroFilter {
-    private var minCutoff: CGFloat
+    var minCutoff: CGFloat
     var beta: CGFloat
     private var dCutoff: CGFloat
     
@@ -104,24 +104,31 @@ class HandTracker {
     var indexMCP = PersistentPoint()
     var thumbTip = PersistentPoint()
     var wrist = PersistentPoint()
+    var pinkyMCP = PersistentPoint()
+    var middleTip = PersistentPoint()
     
     func update(from observation: VNHumanHandPoseObservation) {
         let rawIdxTip = try? observation.recognizedPoint(.indexTip)
         let rawIdxMCP = try? observation.recognizedPoint(.indexMCP)
         let rawThumbTip = try? observation.recognizedPoint(.thumbTip)
         let rawWrist = try? observation.recognizedPoint(.wrist)
+        let rawPinkyMCP = try? observation.recognizedPoint(.littleMCP)
+        let rawMiddleTip = try? observation.recognizedPoint(.middleTip)
         
         indexTip.update(newPoint: rawIdxTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawIdxTip?.confidence ?? 0.0)
         indexMCP.update(newPoint: rawIdxMCP.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawIdxMCP?.confidence ?? 0.0)
         thumbTip.update(newPoint: rawThumbTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawThumbTip?.confidence ?? 0.0)
         wrist.update(newPoint: rawWrist.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawWrist?.confidence ?? 0.0)
+        pinkyMCP.update(newPoint: rawPinkyMCP.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawPinkyMCP?.confidence ?? 0.0)
+        middleTip.update(newPoint: rawMiddleTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawMiddleTip?.confidence ?? 0.0)
     }
     
     var isDataComplete: Bool {
         return indexTip.getPoint() != nil &&
                indexMCP.getPoint() != nil &&
                thumbTip.getPoint() != nil &&
-               wrist.getPoint() != nil
+               wrist.getPoint() != nil &&
+               pinkyMCP.getPoint() != nil
     }
 }
 
@@ -143,132 +150,29 @@ enum FingerPosture: String {
 }
 
 // =========================================================================
-// INTERFACE GRÁFICA (HUD Overlay & Landmarks)
+// INTERFACE GRÁFICA (Removida)
 // =========================================================================
-
-class HUDWindow: NSPanel {
-    init(contentRect: NSRect) {
-        super.init(
-            contentRect: contentRect,
-            styleMask: [.titled, .closable, .utilityWindow, .hudWindow, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        self.title = "HandCursor HUD"
-        self.isMovableByWindowBackground = true
-        self.level = .floating
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        
-        let effectView = NSVisualEffectView(frame: contentRect)
-        effectView.material = .hudWindow
-        effectView.blendingMode = .behindWindow
-        effectView.state = .active
-        effectView.autoresizingMask = [.width, .height]
-        self.contentView = effectView
-    }
-}
-
-class LandmarkOverlayView: NSView {
-    var points: [String: CGPoint] = [:]
-    var gestureState: AppState = .navegacao
-    
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        
-        guard !points.isEmpty, let ctx = NSGraphicsContext.current?.cgContext else { return }
-        
-        let w = self.bounds.width
-        let h = self.bounds.height
-        
-        // Mapeia coordenadas normalizadas da câmera (0...1) para o tamanho do preview.
-        // Como o preview é espelhado (modo selfie), fazemos xEspelhado = 1.0 - x.
-        func converter(_ pt: CGPoint) -> CGPoint {
-            let xEspelhado = 1.0 - pt.x
-            return CGPoint(x: xEspelhado * w, y: pt.y * h)
-        }
-        
-        ctx.setLineWidth(3.0)
-        
-        let color: NSColor
-        switch gestureState {
-        case .navegacao: color = .systemGreen
-        case .preClique: color = .systemOrange
-        case .cliqueArraste: color = .systemRed
-        case .soltar: color = .systemBlue
-        }
-        
-        color.setStroke()
-        color.setFill()
-        
-        let tTip = points["thumbTip"].map(converter)
-        let iTip = points["indexTip"].map(converter)
-        let iMCP = points["indexMCP"].map(converter)
-        let wr = points["wrist"].map(converter)
-        
-        // Desenha as linhas entre as articulações da mão
-        if let thumb = tTip, let index = iTip {
-            ctx.move(to: thumb)
-            ctx.addLine(to: index)
-            ctx.strokePath()
-        }
-        
-        if let index = iTip, let mcp = iMCP {
-            ctx.move(to: index)
-            ctx.addLine(to: mcp)
-            ctx.strokePath()
-        }
-        
-        if let mcp = iMCP, let wrist = wr {
-            ctx.move(to: mcp)
-            ctx.addLine(to: wrist)
-            ctx.strokePath()
-        }
-        
-        if let thumb = tTip, let wrist = wr {
-            ctx.move(to: thumb)
-            ctx.addLine(to: wrist)
-            ctx.strokePath()
-        }
-        
-        // Desenha os pontos nas articulações
-        for pt in [tTip, iTip, iMCP, wr].compactMap({ $0 }) {
-            let rect = CGRect(x: pt.x - 6, y: pt.y - 6, width: 12, height: 12)
-            ctx.fillEllipse(in: rect)
-        }
-    }
-}
 
 class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let sessaoCaptura = AVCaptureSession()
     private let sequenceHandler = VNSequenceRequestHandler()
     
     // Parâmetros calibráveis de Pinça e Aproximação
-    private var limiarClique: CGFloat = 0.70
-    private var limiarDesbloqueio: CGFloat { return limiarClique + 0.15 }
-    private var limiarToqueFisico: CGFloat = 0.20
-    private var limiarLiberacao: CGFloat = 0.30
+    private var limiarClique: CGFloat = 0.35
+    private var limiarDesbloqueio: CGFloat = 0.45
+    private var limiarToqueFisico: CGFloat = 0.12
+    private var limiarLiberacao: CGFloat = 0.25
     
-    // Elementos da Interface Gráfica (HUD)
-    private var windowHUD: HUDWindow!
-    private var landmarkView: LandmarkOverlayView!
-    private var statusLabel: NSTextField!
-    private var ratioLabel: NSTextField!
-    private var sensibilidadeLabel: NSTextField!
-    private var limiarLabel: NSTextField!
-    private var betaLabel: NSTextField!
-    
-    private var ultimoRatioExibido: CGFloat = 0.0
-    
-    // Filtro Passa-Baixa de pré-processamento otimizado (alpha = 0.65)
-    // Minimiza o lag a quase zero (~5ms) mantendo amortecimento do ruído de pixel da webcam.
+
+    // Filtro Passa-Baixa de pré-processamento quase sem lag (alpha = 0.95 para responsividade extrema)
     private let preFiltroX = LowPassFilter()
     private let preFiltroY = LowPassFilter()
     
-    // Filtro One Euro calibrado para responsividade máxima:
-    // minCutoff = 0.12 para suavidade estática absoluta.
-    // beta = 6.0 para eliminar completamente o lag de arraste dinâmico do cursor.
-    private let filtroX = OneEuroFilter(minCutoff: 0.12, beta: 6.0, dCutoff: 1.0)
-    private let filtroY = OneEuroFilter(minCutoff: 0.12, beta: 6.0, dCutoff: 1.0)
+    // Filtro One Euro ajustado para eliminar tremores (minCutoff super baixo):
+    // minCutoff = 0.10 deixa estável para mirar em bordas de janelas
+    // beta = 5.0 compensa para não ficar tão elástico/lento
+    private let filtroX = OneEuroFilter(minCutoff: 0.10, beta: 5.0, dCutoff: 1.0)
+    private let filtroY = OneEuroFilter(minCutoff: 0.10, beta: 5.0, dCutoff: 1.0)
     
     // Filtros passa-baixa rápidos para o modo Arraste (alpha = 0.55 para snappiness imediato)
     private let dragFilterX = LowPassFilter()
@@ -286,6 +190,8 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private var frozenPosition: CGPoint = .zero
     private var anchorHandPosition: CGPoint = .zero
     private var cursorAnchor: CGPoint = .zero
+    private var pinchOffset: CGPoint = .zero
+    private var isRightClickActive: Bool = false
     
     // Buffer circular de posições para compensação retroativa de drift de pinça
     private var historicoPosicoes: [CGPoint] = []
@@ -317,10 +223,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         print("- Janela de Duplo Clique de 0.5s para abertura de arquivos")
         print("========================================================\n")
         
-        DispatchQueue.main.async { [weak self] in
-            self?.configurarInterface()
-        }
-        
+
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         if status == .authorized {
             self.configurarCamera()
@@ -336,125 +239,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
-    private func configurarInterface() {
-        let contentRect = NSRect(x: 100, y: 100, width: 320, height: 500)
-        windowHUD = HUDWindow(contentRect: contentRect)
-        
-        guard let effectView = windowHUD.contentView as? NSVisualEffectView else { return }
-        
-        // 1. Container da Câmera
-        let previewContainer = NSView(frame: NSRect(x: 0, y: 260, width: 320, height: 240))
-        previewContainer.wantsLayer = true
-        previewContainer.layer?.backgroundColor = NSColor.black.cgColor
-        effectView.addSubview(previewContainer)
-        
-        let previewLayer = AVCaptureVideoPreviewLayer(session: sessaoCaptura)
-        previewLayer.frame = NSRect(x: 0, y: 0, width: 320, height: 240)
-        previewLayer.videoGravity = .resizeAspectFill
-        previewContainer.layer?.addSublayer(previewLayer)
-        
-        landmarkView = LandmarkOverlayView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
-        landmarkView.wantsLayer = true
-        previewContainer.addSubview(landmarkView)
-        
-        // 2. Painel de Controles
-        // Título
-        let titulo = criarLabel(frame: CGRect(x: 16, y: 235, width: 288, height: 20), texto: "HAND CURSOR STUDIO", tamanho: 13, negrito: true)
-        titulo.alignment = .center
-        titulo.textColor = .secondaryLabelColor
-        effectView.addSubview(titulo)
-        
-        // Status
-        statusLabel = criarLabel(frame: CGRect(x: 16, y: 210, width: 288, height: 18), texto: "Estado: Inicializando...", tamanho: 12, negrito: true)
-        effectView.addSubview(statusLabel)
-        
-        // Ratio
-        ratioLabel = criarLabel(frame: CGRect(x: 16, y: 190, width: 288, height: 18), texto: "Proporção de Pinça: 0.000", tamanho: 11)
-        effectView.addSubview(ratioLabel)
-        
-        // Sensibilidade
-        sensibilidadeLabel = criarLabel(frame: CGRect(x: 16, y: 155, width: 288, height: 16), texto: "Sensibilidade do Cursor: 2.5x", tamanho: 11)
-        effectView.addSubview(sensibilidadeLabel)
-        
-        let sensibilidadeSlider = NSSlider()
-        sensibilidadeSlider.minValue = 1.0
-        sensibilidadeSlider.maxValue = 6.0
-        sensibilidadeSlider.doubleValue = Double(dragSensitivity)
-        sensibilidadeSlider.target = self
-        sensibilidadeSlider.action = #selector(sensibilidadeAlterada(_:))
-        sensibilidadeSlider.frame = CGRect(x: 16, y: 135, width: 288, height: 20)
-        effectView.addSubview(sensibilidadeSlider)
-        
-        // Limiar Clique
-        limiarLabel = criarLabel(frame: CGRect(x: 16, y: 100, width: 288, height: 16), texto: String(format: "Limiar de Clique: %.2f", limiarClique), tamanho: 11)
-        effectView.addSubview(limiarLabel)
-        
-        let limiarSlider = NSSlider()
-        limiarSlider.minValue = 0.40
-        limiarSlider.maxValue = 1.00
-        limiarSlider.doubleValue = Double(limiarClique)
-        limiarSlider.target = self
-        limiarSlider.action = #selector(limiarAlterado(_:))
-        limiarSlider.frame = CGRect(x: 16, y: 80, width: 288, height: 20)
-        effectView.addSubview(limiarSlider)
-        
-        // Beta Filtro
-        betaLabel = criarLabel(frame: CGRect(x: 16, y: 45, width: 288, height: 16), texto: "Filtro de Ruído Beta: 6.0", tamanho: 11)
-        effectView.addSubview(betaLabel)
-        
-        let betaSlider = NSSlider()
-        betaSlider.minValue = 1.0
-        betaSlider.maxValue = 15.0
-        betaSlider.doubleValue = Double(filtroX.beta)
-        betaSlider.target = self
-        betaSlider.action = #selector(betaAlterado(_:))
-        betaSlider.frame = CGRect(x: 16, y: 25, width: 288, height: 20)
-        effectView.addSubview(betaSlider)
-        
-        windowHUD.makeKeyAndOrderFront(nil)
-    }
-    
-    private func criarLabel(frame: CGRect, texto: String, tamanho: CGFloat, negrito: Bool = false) -> NSTextField {
-        let label = NSTextField(labelWithString: texto)
-        label.frame = frame
-        label.font = negrito ? NSFont.boldSystemFont(ofSize: tamanho) : NSFont.systemFont(ofSize: tamanho)
-        label.isEditable = false
-        label.isSelectable = false
-        label.isBordered = false
-        label.drawsBackground = false
-        return label
-    }
-    
-    @objc private func sensibilidadeAlterada(_ sender: NSSlider) {
-        dragSensitivity = CGFloat(sender.doubleValue)
-        sensibilidadeLabel.stringValue = String(format: "Sensibilidade do Cursor: %.1fx", dragSensitivity)
-    }
-    
-    @objc private func limiarAlterado(_ sender: NSSlider) {
-        limiarClique = CGFloat(sender.doubleValue)
-        limiarLabel.stringValue = String(format: "Limiar de Clique: %.2f", limiarClique)
-    }
-    
-    @objc private func betaAlterado(_ sender: NSSlider) {
-        let novoBeta = CGFloat(sender.doubleValue)
-        filtroX.beta = novoBeta
-        filtroY.beta = novoBeta
-        betaLabel.stringValue = String(format: "Filtro de Ruído Beta: %.1f", novoBeta)
-    }
-    
-    private func atualizarLabelsHUD() {
-        let estadoStr: String
-        switch currentState {
-        case .navegacao: estadoStr = "Navegação Livre"
-        case .preClique: estadoStr = "Pré-Clique (Mira Travada)"
-        case .cliqueArraste: estadoStr = "Clique / Arraste Ativo"
-        case .soltar: estadoStr = "Soltar Clique"
-        }
-        statusLabel.stringValue = "Estado: \(estadoStr)"
-        
-        ratioLabel.stringValue = String(format: "Proporção de Pinça: %.3f (Alvo: <%.2f)", ultimoRatioExibido, limiarClique)
-    }
-    
+
     private func configurarCamera() {
         guard let dispositivo = AVCaptureDevice.default(for: .video),
               let entrada = try? AVCaptureDeviceInput(device: dispositivo) else {
@@ -517,38 +302,13 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private func processarResultado(requisicao: VNRequest, erro: Error?) {
         guard let resultados = requisicao.results as? [VNHumanHandPoseObservation],
               let mao = resultados.first else {
-            // Se a mão for perdida, limpa os pontos no overlay HUD
-            DispatchQueue.main.async { [weak self] in
-                self?.landmarkView.points = [:]
-                self?.landmarkView.needsDisplay = true
-            }
+            // Se a mão for perdida, apenas retorna
             return
         }
         
         tracker.update(from: mao)
         
-        // Obter os pontos para desenhar no HUD
-        var pontosHUD: [String: CGPoint] = [:]
-        if let idxTip = try? mao.recognizedPoint(.indexTip), idxTip.confidence > 0.08 {
-            pontosHUD["indexTip"] = CGPoint(x: idxTip.x, y: idxTip.y)
-        }
-        if let idxMCP = try? mao.recognizedPoint(.indexMCP), idxMCP.confidence > 0.08 {
-            pontosHUD["indexMCP"] = CGPoint(x: idxMCP.x, y: idxMCP.y)
-        }
-        if let thumbTip = try? mao.recognizedPoint(.thumbTip), thumbTip.confidence > 0.08 {
-            pontosHUD["thumbTip"] = CGPoint(x: thumbTip.x, y: thumbTip.y)
-        }
-        if let wrist = try? mao.recognizedPoint(.wrist), wrist.confidence > 0.08 {
-            pontosHUD["wrist"] = CGPoint(x: wrist.x, y: wrist.y)
-        }
-        
-        DispatchQueue.main.async { [weak self] in
-            self?.landmarkView.points = pontosHUD
-            self?.landmarkView.gestureState = self?.currentState ?? .navegacao
-            self?.landmarkView.needsDisplay = true
-            self?.atualizarLabelsHUD()
-        }
-        
+
         guard tracker.isDataComplete else { return }
         
         self.avaliarMaquinaEstados()
@@ -565,16 +325,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     // - bending -> fullyBent (mouseDown): < 0.17 (detecta o toque físico de forma extremamente robusta)
     // - fullyBent -> bending (mouseUp): > 0.22 (permite liberação rápida sem emperrar)
     // - bending -> extended (desbloqueio): > 0.44 (destrava a mira assim que a mão abre)
-    private func obterEstadoDedoRaw(tip: CGPoint, thumb: CGPoint, mcp: CGPoint, wrist: CGPoint) -> FingerPosture {
-        let dIndexThumb = distance(tip, thumb)
-        
-        // Substituindo o Bounding Box por uma distância física invariante à rotação!
-        // A distância entre a base do indicador (MCP) e o pulso (Wrist) se mantém
-        // constante independentemente da orientação 2D da mão, resolvendo o bug do ângulo.
-        let handScale = distance(mcp, wrist)
-        guard handScale > 0.01 else { return .extended }
-        
-        let ratio = dIndexThumb / handScale
+    private func obterEstadoDedoRaw(ratio: CGFloat) -> FingerPosture {
         
         switch rawPosture {
         case .extended:
@@ -595,8 +346,8 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         return rawPosture
     }
     
-    private func obterEstadoDedoDebounced(tip: CGPoint, thumb: CGPoint, mcp: CGPoint, wrist: CGPoint) -> FingerPosture {
-        let raw = obterEstadoDedoRaw(tip: tip, thumb: thumb, mcp: mcp, wrist: wrist)
+    private func obterEstadoDedoDebounced(ratio: CGFloat) -> FingerPosture {
+        let raw = obterEstadoDedoRaw(ratio: ratio)
         
         rawPostureHistory.append(raw)
         if rawPostureHistory.count > 2 {
@@ -634,15 +385,30 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
-    private func iniciarClique(agora: TimeInterval, wrist: CGPoint) {
+    private func iniciarClique(agora: TimeInterval, wrist: CGPoint, indexTip: CGPoint) {
+        let finalIsRightClick = false
+        
         let intervalo = agora - lastClickReleaseTime
-        if intervalo <= 0.5 && lastClickReleaseTime > 0 {
+        
+        // Tempo limite do duplo clique ajustado para 0.6s (confortável, mas sem travar cliques futuros)
+        if intervalo > 0.15 && intervalo <= 0.6 && lastClickReleaseTime > 0 {
+            // Segundo clique -> Duplo Clique Esquerdo
             clickCount = 2
-            print("🔥 [CLIQUE] Duplo clique acionado (clickCount = 2)")
+            frozenPosition = cursorAnchor
+            print("🔥 [CLIQUE] Duplo clique acionado")
+        } else if intervalo <= 0.15 && lastClickReleaseTime > 0 {
+            // BOUNCE PROTECTION: Foi rápido demais (< 150ms), impossível ser humano. É tremor da câmera!
+            // Não incrementa o contador para evitar menu acidental no primeiro toque.
+            print("⚠️ [BOUNCE] Tremor ignorado, mantendo clickCount = \(clickCount)")
         } else {
+            // Primeiro clique
             clickCount = 1
-            print("👆 [CLIQUE] Clique simples acionado (clickCount = 1)")
+            print("👆 [CLIQUE] Clique simples acionado")
         }
+        
+        self.isRightClickActive = finalIsRightClick
+        let rawMapped = obterPontoMapeado(pontoCam: indexTip, tela: telaBounds)
+        pinchOffset = CGPoint(x: frozenPosition.x - rawMapped.x, y: frozenPosition.y - rawMapped.y)
         
         dragActive = false
         timeEnteredFullyBent = agora
@@ -656,14 +422,25 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         filtroX.travarPosicao(frozenPosition.x)
         filtroY.travarPosicao(frozenPosition.y)
         
-        postMouseEvent(type: .leftMouseDown, point: frozenPosition, clickCount: clickCount)
+        // Hack para Duplo Clique Lento:
+        // O macOS nativamente só aceita duplo-clique se o intervalo for < 0.5s.
+        // Como o usuário pode levar até 0.9s (para maior conforto), o macOS ignoraria nosso clickCount=2.
+        // A mágica: Injetamos um clique 1 "fantasma" no exato milissegundo antes do clique 2!
+        if clickCount == 2 {
+            postMouseEvent(type: .leftMouseDown, point: frozenPosition, clickCount: 1, isRightClick: false)
+            postMouseEvent(type: .leftMouseUp, point: frozenPosition, clickCount: 1, isRightClick: false)
+        }
+        
+        let dispatchClickCount: Int64 = finalIsRightClick ? 1 : clickCount
+        postMouseEvent(type: .leftMouseDown, point: frozenPosition, clickCount: dispatchClickCount, isRightClick: finalIsRightClick)
     }
     
     private func avaliarMaquinaEstados() {
         guard let pIndexTip = tracker.indexTip.getPoint(),
               let pIndexMCP = tracker.indexMCP.getPoint(),
               let pThumbTip = tracker.thumbTip.getPoint(),
-              let pWrist = tracker.wrist.getPoint() else {
+              let pWrist = tracker.wrist.getPoint(),
+              let pPinkyMCP = tracker.pinkyMCP.getPoint() else {
             return
         }
         
@@ -671,44 +448,81 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         
         let dIndexThumb = distance(pIndexTip, pThumbTip)
         
-        // Cálculo invariante à rotação 2D
-        let handScale = distance(pIndexMCP, pWrist)
-        let ratio = handScale > 0.01 ? (dIndexThumb / handScale) : 1.0
-        ultimoRatioExibido = ratio
+        // Cálculo invariante à rotação 2D usando a largura e altura da palma
+        let distHeight = distance(pIndexMCP, pWrist)
+        let distWidth = distance(pIndexMCP, pPinkyMCP)
+        let handScale = max(distHeight, distWidth)
         
-        let posture = obterEstadoDedoDebounced(tip: pIndexTip, thumb: pThumbTip, mcp: pIndexMCP, wrist: pWrist)
+        let ratio = handScale > 0.01 ? (dIndexThumb / handScale) : 1.0
+        
+        let posture = obterEstadoDedoDebounced(ratio: ratio)
         logEstado(ratio: ratio, posture: posture)
         
         switch currentState {
         case .navegacao: // Estado 0 — Navegação Livre
             if posture == .extended {
-                let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
-                
-                let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.65)
-                let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.65)
-                
-                let filteredX = filtroX.filtrar(valor: preX, timestamp: agora)
-                let filteredY = filtroY.filtrar(valor: preY, timestamp: agora)
-                let filteredPoint = CGPoint(x: filteredX, y: filteredY)
-                
-                posicaoCursorAtual = filteredPoint
-                frozenPosition = filteredPoint
-                
-                historicoPosicoes.append(filteredPoint)
-                if historicoPosicoes.count > 10 { // Retrocesso de 10 frames (~166ms) garante que a mira congele antes do dedo se mover
-                    historicoPosicoes.removeFirst()
+                // Reduzido para 0.35s! Libera a mira super rápido após soltar o clique, dando agilidade.
+                if agora - lastClickReleaseTime <= 0.35 && lastClickReleaseTime > 0 {
+                    // JANELA DE CLIQUE MULTIPLO: A mira fica ancorada na frozenPosition.
+                    // Permite abrir a mão o quanto quiser para preparar o duplo/triplo clique sem arrastar o cursor.
+                    posicaoCursorAtual = frozenPosition
+                    
+                    // Alimenta os filtros para evitar pulos quando a janela de tempo acabar
+                    let _ = preFiltroX.aplicar(valor: frozenPosition.x, alpha: 0.95)
+                    let _ = preFiltroY.aplicar(valor: frozenPosition.y, alpha: 0.95)
+                    filtroX.travarPosicao(frozenPosition.x)
+                    filtroY.travarPosicao(frozenPosition.y)
+                    
+                    historicoPosicoes.append(frozenPosition)
+                    if historicoPosicoes.count > 10 { historicoPosicoes.removeFirst() }
+                    
+                    postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
+                } else {
+                    let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+                    
+                    // --- LÓGICA DE DESACELERAÇÃO GRAVITACIONAL ---
+                    // Mapeia a distância (ratio) de 0.45 (rápido) até 0.20 (lento)
+                    let maxRatio: CGFloat = 0.45
+                    let minRatio: CGFloat = 0.20
+                    let clampedRatio = max(minRatio, min(maxRatio, ratio))
+                    let normalized = (clampedRatio - minRatio) / (maxRatio - minRatio) // 0.0 (perto) a 1.0 (longe)
+                    
+                    // Usando uma curva não-linear (potência) para que fique pesado mais rápido no final
+                    let dynamicCutoff = 0.001 + (0.50 - 0.001) * (normalized * normalized)
+                    let dynamicBeta = 0.0 + (5.0 - 0.0) * normalized // Zera o momentum quando próximo do clique
+                    filtroX.minCutoff = dynamicCutoff
+                    filtroY.minCutoff = dynamicCutoff
+                    filtroX.beta = dynamicBeta
+                    filtroY.beta = dynamicBeta
+                    
+                    let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.95)
+                    let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.95)
+                    
+                    let filteredX = filtroX.filtrar(valor: preX, timestamp: agora)
+                    let filteredY = filtroY.filtrar(valor: preY, timestamp: agora)
+                    let filteredPoint = CGPoint(x: filteredX, y: filteredY)
+                    
+                    posicaoCursorAtual = filteredPoint
+                    frozenPosition = filteredPoint
+                    
+                    historicoPosicoes.append(filteredPoint)
+                    if historicoPosicoes.count > 10 { // Retrocesso de 10 frames (~166ms) garante que a mira congele antes do dedo se mover
+                        historicoPosicoes.removeFirst()
+                    }
+                    
+                    postMouseEvent(type: .mouseMoved, point: posicaoCursorAtual, clickCount: 1, isRightClick: false)
                 }
-                
-                postMouseEvent(type: .mouseMoved, point: posicaoCursorAtual, clickCount: 1)
             } else if posture == .bending {
                 currentState = .preClique
+                // FIM DO "PULINHO": Congela exatamente onde o cursor está agora, sem voltar no tempo!
+                frozenPosition = posicaoCursorAtual
                 historicoPosicoes.removeAll()
-                print("🔒 [ESTADO 1] Iniciando desaceleração progressiva do cursor.")
+                print("🔒 [ESTADO 1] Cursor totalmente congelado para o clique.")
             } else if posture == .fullyBent {
                 currentState = .cliqueArraste
                 frozenPosition = historicoPosicoes.first ?? posicaoCursorAtual
                 historicoPosicoes.removeAll()
-                iniciarClique(agora: agora, wrist: pWrist)
+                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip)
             }
             
         case .preClique: // Estado 1 — Pré-Clique
@@ -716,45 +530,43 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 currentState = .navegacao
                 print("☝️ [ESTADO 0] Retornando para Navegação livre.")
             } else if posture == .bending {
-                // Cálculo de velocidade dinâmica: quanto mais próximo, mais lento fica.
-                let minRatio: CGFloat = limiarToqueFisico + 0.05
-                let maxRatio: CGFloat = limiarClique
+                // Congelamento total: o cursor não se move enquanto o dedo estiver dobrando para clicar.
+                // Isso garante que o clique aconteça no lugar exato onde o movimento de pinça começou.
+                posicaoCursorAtual = frozenPosition
                 
-                // Mapear de 0.0 (em minRatio, cursor parado) a 1.0 (em maxRatio, velocidade normal)
-                let factor = max(0.0, min(1.0, (ratio - minRatio) / (maxRatio - minRatio)))
-                // Curva não-linear para maior precisão final (x^2)
-                let speedFactor = factor * factor
-                
+                // Atualizar rastreamento interno, mas sem mover o cursor visível.
                 let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
-                let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.65)
-                let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.65)
+                let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.95)
+                let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.95)
+                _ = filtroX.filtrar(valor: preX, timestamp: agora)
+                _ = filtroY.filtrar(valor: preY, timestamp: agora)
                 
-                let rawFilteredX = filtroX.filtrar(valor: preX, timestamp: agora)
-                let rawFilteredY = filtroY.filtrar(valor: preY, timestamp: agora)
+                // Travar os filtros na posição congelada para evitar saltos ou desvios ao retomar.
+                filtroX.travarPosicao(frozenPosition.x)
+                filtroY.travarPosicao(frozenPosition.y)
                 
-                // Aplicar a redução de velocidade no deslocamento em relação ao último frame
-                let deltaX = rawFilteredX - posicaoCursorAtual.x
-                let deltaY = rawFilteredY - posicaoCursorAtual.y
-                
-                posicaoCursorAtual.x += deltaX * speedFactor
-                posicaoCursorAtual.y += deltaY * speedFactor
-                
-                // Sincronizar o estado dos filtros para a posição atenuada (não acumular desvio)
-                filtroX.travarPosicao(posicaoCursorAtual.x)
-                filtroY.travarPosicao(posicaoCursorAtual.y)
-                
-                frozenPosition = posicaoCursorAtual
-                postMouseEvent(type: .mouseMoved, point: posicaoCursorAtual, clickCount: 1)
+                postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
             } else if posture == .fullyBent {
                 currentState = .cliqueArraste
-                iniciarClique(agora: agora, wrist: pWrist)
+                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip)
             }
             
         case .cliqueArraste: // Estado 2 — Clique / Arraste
             if posture == .fullyBent {
-                if !dragActive {
-                    let tempoPassado = agora - timeEnteredFullyBent
-                    
+                let tempoPassado = agora - timeEnteredFullyBent
+                
+                // --- MENU DIREITO (LONG PRESS) ---
+                // Se for o 1º clique, segurar por 0.8s e não tiver movido a mão (arrastado), abre o menu!
+                if clickCount == 1 && tempoPassado > 0.8 && !isRightClickActive && !dragActive {
+                    print("⚡️ [CLIQUE] Segurou parado -> Menu (Clique Direito)")
+                    postMouseEvent(type: .leftMouseUp, point: posicaoCursorAtual, clickCount: 1, isRightClick: false)
+                    postMouseEvent(type: .leftMouseDown, point: posicaoCursorAtual, clickCount: 1, isRightClick: true)
+                    self.isRightClickActive = true
+                }
+                
+                // --- ARRASTAR (POR MOVIMENTO) ---
+                // Só arrasta se for o 1º clique e o menu direito ainda não tiver aberto
+                if !dragActive && !isRightClickActive {
                     let curX = 1.0 - pWrist.x
                     let curY = 1.0 - pWrist.y
                     let ancX = 1.0 - anchorHandPosition.x
@@ -763,30 +575,21 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                     let dy = curY - ancY
                     let deltaDist = sqrt(dx*dx + dy*dy)
                     
-                    if tempoPassado > 0.18 || deltaDist > 0.015 {
+                    // O arraste é puramente por movimento. Moveu a mão um pouquinho (0.015), gruda!
+                    if clickCount == 1 && deltaDist > 0.015 {
                         dragActive = true
                         anchorHandPosition = pWrist
                         cursorAnchor = frozenPosition
                         dragFilterX.y = frozenPosition.x
                         dragFilterY.y = frozenPosition.y
-                        print("🔄 [ESTADO 2 - ARRASTE] Drag ativado por \(tempoPassado > 0.18 ? "tempo" : "movimento").")
+                        print("🔄 [ESTADO 2 - ARRASTE] Drag ativado instantaneamente por movimento.")
                     }
                 }
                 
                 if dragActive {
-                    let curX = 1.0 - pWrist.x
-                    let curY = 1.0 - pWrist.y
-                    let ancX = 1.0 - anchorHandPosition.x
-                    let ancY = 1.0 - anchorHandPosition.y
-                    
-                    let dx = curX - ancX
-                    let dy = curY - ancY
-                    
-                    let deltaX = dx * telaBounds.width * dragSensitivity
-                    let deltaY = dy * telaBounds.height * dragSensitivity
-                    
-                    let targetX = cursorAnchor.x + deltaX
-                    let targetY = cursorAnchor.y + deltaY
+                    let rawMapped = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+                    let targetX = rawMapped.x + pinchOffset.x
+                    let targetY = rawMapped.y + pinchOffset.y
                     
                     let filteredX = dragFilterX.aplicar(valor: targetX, alpha: 0.55)
                     let filteredY = dragFilterY.aplicar(valor: targetY, alpha: 0.55)
@@ -795,11 +598,12 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                     let clampedY = max(0, min(telaBounds.height, filteredY))
                     
                     posicaoCursorAtual = CGPoint(x: clampedX, y: clampedY)
-                    postMouseEvent(type: .leftMouseDragged, point: posicaoCursorAtual, clickCount: clickCount)
+                    postMouseEvent(type: .leftMouseDragged, point: posicaoCursorAtual, clickCount: clickCount, isRightClick: isRightClickActive)
                 }
             } else {
-                postMouseEvent(type: .leftMouseUp, point: posicaoCursorAtual, clickCount: clickCount)
-                print(String(format: "💥 [SOLTOU] leftMouseUp em %@ | clickCount: %d", String(describing: posicaoCursorAtual), clickCount))
+                let dispatchClickCount: Int64 = isRightClickActive ? 1 : clickCount
+                postMouseEvent(type: .leftMouseUp, point: posicaoCursorAtual, clickCount: dispatchClickCount, isRightClick: isRightClickActive)
+                print(String(format: "💥 [SOLTOU] leftMouseUp em %@ | clickCount: %d | RightClick: %@", String(describing: posicaoCursorAtual), dispatchClickCount, isRightClickActive ? "SIM" : "NAO"))
                 
                 if !dragActive {
                     lastClickReleaseTime = agora
@@ -831,13 +635,24 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
-    private func postMouseEvent(type: CGEventType, point: CGPoint, clickCount: Int64) {
-        let source = CGEventSource(stateID: .combinedSessionState)
-        let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
+    private func postMouseEvent(type: CGEventType, point: CGPoint, clickCount: Int64, isRightClick: Bool) {
+        var finalType = type
+        var finalButton: CGMouseButton = .left
+        
+        if isRightClick {
+            finalButton = .right
+            if type == .leftMouseDown { finalType = .rightMouseDown }
+            else if type == .leftMouseUp { finalType = .rightMouseUp }
+            else if type == .leftMouseDragged { finalType = .rightMouseDragged }
+        }
+        
+        let source = CGEventSource(stateID: .hidSystemState)
+        let event = CGEvent(mouseEventSource: source, mouseType: finalType, mouseCursorPosition: point, mouseButton: finalButton)
+        
         event?.setIntegerValueField(.mouseEventClickState, value: clickCount)
         event?.post(tap: .cghidEventTap)
         
-        if type == .leftMouseDown {
+        if finalType == .leftMouseDown || finalType == .rightMouseDown {
             DispatchQueue.main.async {
                 NSSound(named: "Pop")?.play()
             }
@@ -850,7 +665,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 // =========================================================================
 
 let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
+app.setActivationPolicy(.prohibited)
 let appController = AppController()
 appController.iniciar()
 app.run()
