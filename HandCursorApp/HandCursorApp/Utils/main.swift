@@ -158,8 +158,8 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let sequenceHandler = VNSequenceRequestHandler()
     
     // Parâmetros calibráveis de Pinça e Aproximação
-    private var limiarClique: CGFloat = 0.45
-    private var limiarDesbloqueio: CGFloat = 0.55
+    private var limiarClique: CGFloat = 0.28
+    private var limiarDesbloqueio: CGFloat = 0.40
     private var limiarToqueFisico: CGFloat = 0.12
     private var limiarLiberacao: CGFloat = 0.38
     
@@ -385,7 +385,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
-    private func iniciarClique(agora: TimeInterval, wrist: CGPoint, indexTip: CGPoint) {
+    private func iniciarClique(agora: TimeInterval, wrist: CGPoint, indexTip: CGPoint, thumbTip: CGPoint) {
         let finalIsRightClick = false
         
         let intervalo = agora - lastClickReleaseTime
@@ -407,7 +407,8 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
         
         self.isRightClickActive = finalIsRightClick
-        let rawMapped = obterPontoMapeado(pontoCam: indexTip, tela: telaBounds)
+        let pinchCenter = CGPoint(x: (indexTip.x + thumbTip.x) / 2.0, y: (indexTip.y + thumbTip.y) / 2.0)
+        let rawMapped = obterPontoMapeado(pontoCam: pinchCenter, tela: telaBounds)
         pinchOffset = CGPoint(x: frozenPosition.x - rawMapped.x, y: frozenPosition.y - rawMapped.y)
         
         dragActive = false
@@ -482,17 +483,19 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                     
                     postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
                 } else {
-                    let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+                    // MIRA PELO CENTRO DA PINÇA (Elimina o desvio de mira quando o dedo dobra)
+                    let pinchCenter = CGPoint(x: (pIndexTip.x + pThumbTip.x) / 2.0, y: (pIndexTip.y + pThumbTip.y) / 2.0)
+                    let mappedPoint = obterPontoMapeado(pontoCam: pinchCenter, tela: telaBounds)
                     
                     // --- LÓGICA DE DESACELERAÇÃO GRAVITACIONAL ---
-                    // Mapeia a distância (ratio) de 0.45 (rápido) até 0.20 (lento)
+                    // Começa a frear aos 0.45, e freia quase totalmente quando chega perto de 0.28 (limiarClique)
                     let maxRatio: CGFloat = 0.45
-                    let minRatio: CGFloat = 0.20
+                    let minRatio: CGFloat = 0.28
                     let clampedRatio = max(minRatio, min(maxRatio, ratio))
                     let normalized = (clampedRatio - minRatio) / (maxRatio - minRatio) // 0.0 (perto) a 1.0 (longe)
                     
                     // Usando uma curva não-linear (potência) para que fique pesado mais rápido no final
-                    let dynamicCutoff = 0.001 + (0.50 - 0.001) * (normalized * normalized)
+                    let dynamicCutoff = 0.001 + (1.50 - 0.001) * (normalized * normalized) // 1.50 para agilidade extrema com a mão aberta!
                     let dynamicBeta = 0.0 + (5.0 - 0.0) * normalized // Zera o momentum quando próximo do clique
                     filtroX.minCutoff = dynamicCutoff
                     filtroY.minCutoff = dynamicCutoff
@@ -524,9 +527,9 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 print("🔒 [ESTADO 1] Cursor totalmente congelado para o clique.")
             } else if posture == .fullyBent {
                 currentState = .cliqueArraste
-                frozenPosition = historicoPosicoes.first ?? posicaoCursorAtual
+                frozenPosition = posicaoCursorAtual
                 historicoPosicoes.removeAll()
-                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip)
+                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip)
             }
             
         case .preClique: // Estado 1 — Pré-Clique
@@ -552,7 +555,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
             } else if posture == .fullyBent {
                 currentState = .cliqueArraste
-                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip)
+                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip)
             }
             
         case .cliqueArraste: // Estado 2 — Clique / Arraste
@@ -591,7 +594,8 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 }
                 
                 if dragActive {
-                    let rawMapped = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+                    let pinchCenter = CGPoint(x: (pIndexTip.x + pThumbTip.x) / 2.0, y: (pIndexTip.y + pThumbTip.y) / 2.0)
+                    let rawMapped = obterPontoMapeado(pontoCam: pinchCenter, tela: telaBounds)
                     let targetX = rawMapped.x + pinchOffset.x
                     let targetY = rawMapped.y + pinchOffset.y
                     
