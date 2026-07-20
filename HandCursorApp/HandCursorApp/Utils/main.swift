@@ -158,10 +158,10 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let sequenceHandler = VNSequenceRequestHandler()
     
     // Parâmetros calibráveis de Pinça e Aproximação
-    private var limiarClique: CGFloat = 0.35
-    private var limiarDesbloqueio: CGFloat = 0.45
+    private var limiarClique: CGFloat = 0.45
+    private var limiarDesbloqueio: CGFloat = 0.55
     private var limiarToqueFisico: CGFloat = 0.12
-    private var limiarLiberacao: CGFloat = 0.25
+    private var limiarLiberacao: CGFloat = 0.38
     
 
     // Filtro Passa-Baixa de pré-processamento quase sem lag (alpha = 0.95 para responsividade extrema)
@@ -448,10 +448,14 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         
         let dIndexThumb = distance(pIndexTip, pThumbTip)
         
-        // Cálculo invariante à rotação 2D usando a largura e altura da palma
-        let distHeight = distance(pIndexMCP, pWrist)
-        let distWidth = distance(pIndexMCP, pPinkyMCP)
-        let handScale = max(distHeight, distWidth)
+        // Cálculo Ultra-Robusto (Invariante à Rotação 3D):
+        // Formamos um triângulo com o Pulso, a Base do Indicador (IndexMCP) e a Base do Mindinho (PinkyMCP).
+        // Pegamos a MAIOR aresta visível desse triângulo. Assim, não importa se você vira a mão
+        // pra cima, pro lado ou pra você: a escala sempre será baseada no lado que sofreu menos distorção 2D!
+        let edge1 = distance(pIndexMCP, pWrist)
+        let edge2 = distance(pIndexMCP, pPinkyMCP)
+        let edge3 = distance(pWrist, pPinkyMCP)
+        let handScale = max(edge1, max(edge2, edge3))
         
         let ratio = handScale > 0.01 ? (dIndexThumb / handScale) : 1.0
         
