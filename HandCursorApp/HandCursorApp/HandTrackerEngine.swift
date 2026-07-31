@@ -5,9 +5,10 @@ import CoreGraphics
 import Cocoa
 
 // =========================================================================
-// 1. FILTRAGEM MATEMÁTICA (One Euro Filter / Low Pass Filter)
+// 1. FILTROS MATEMÁTICOS (Os "Middlewares" de Suavização)
 // =========================================================================
 
+/// Filtro Passa-Baixa: Suaviza os movimentos rápidos, reduzindo o tremor natural da mão.
 class LowPassFilter {
     var y: CGFloat?
     
@@ -23,6 +24,8 @@ class LowPassFilter {
     }
 }
 
+/// One Euro Filter: Filtro avançado que estabiliza o cursor quando a mão está parada (minCutoff)
+/// e permite movimentos rápidos e fluidos quando a mão se move (beta).
 class OneEuroFilter {
     var minCutoff: CGFloat
     var beta: CGFloat
@@ -43,7 +46,7 @@ class OneEuroFilter {
     }
     
     func filtrar(valor: CGFloat, timestamp: TimeInterval) -> CGFloat {
-        let te: TimeInterval = 1.0 / 60.0 // Delta fixo para estabilizar a velocidade de filtragem
+        let te: TimeInterval = 1.0 / 60.0 // Delta fixo assumindo 60 FPS da câmera
         
         if let yAnterior = xFilter.y {
             let dx = (valor - yAnterior) / CGFloat(te)
@@ -63,6 +66,7 @@ class OneEuroFilter {
         }
     }
     
+    /// Força o filtro a assumir uma posição exata (útil para o travamento de mira)
     func travarPosicao(_ novaPosicao: CGFloat) {
         xFilter.y = novaPosicao
         dxFilter.y = 0.0
@@ -70,17 +74,17 @@ class OneEuroFilter {
 }
 
 // =========================================================================
-// 2. PERSISTÊNCIA TEMPORAL (Rastreamento de Mão)
+// 2. PERSISTÊNCIA E MODELO DE DADOS (Rastreamento da Mão)
 // =========================================================================
 
+/// Mantém a memória de um ponto específico da mão, tolerando oclusões rápidas (quando um dedo some rapidamente).
 struct PersistentPoint {
     var point: CGPoint = .zero
     var lostFrames: Int = 0
     var isInitialized: Bool = false
-    var maxLostFrames: Int = 15 // Aumentado para tolerância extra a oclusões (ex: dedos sobrepostos)
+    var maxLostFrames: Int = 15 // Tolerância para frames perdidos
     
     mutating func update(newPoint: CGPoint?, confidence: Float) {
-        // Confiança otimizada para 0.3 para evitar falsos positivos
         if let p = newPoint, confidence > 0.3 {
             self.point = p
             self.lostFrames = 0
@@ -92,13 +96,14 @@ struct PersistentPoint {
     
     func getPoint() -> CGPoint? {
         guard isInitialized else { return nil }
-        if lostFrames <= maxLostFrames { // Suaviza oclusões mais longas
+        if lostFrames <= maxLostFrames {
             return point
         }
         return nil
     }
 }
 
+/// Gerencia e atualiza todos os pontos chave da mão detectados pelo Vision.
 class HandTracker {
     var indexTip = PersistentPoint()
     var indexMCP = PersistentPoint()
@@ -106,7 +111,9 @@ class HandTracker {
     var wrist = PersistentPoint()
     var pinkyMCP = PersistentPoint()
     var middleTip = PersistentPoint()
+    var middleMCP = PersistentPoint()
     var ringTip = PersistentPoint()
+    var ringMCP = PersistentPoint()
     var pinkyTip = PersistentPoint()
     
     func update(from observation: VNHumanHandPoseObservation) {
@@ -116,7 +123,9 @@ class HandTracker {
         let rawWrist = try? observation.recognizedPoint(.wrist)
         let rawPinkyMCP = try? observation.recognizedPoint(.littleMCP)
         let rawMiddleTip = try? observation.recognizedPoint(.middleTip)
+        let rawMiddleMCP = try? observation.recognizedPoint(.middleMCP)
         let rawRingTip = try? observation.recognizedPoint(.ringTip)
+        let rawRingMCP = try? observation.recognizedPoint(.ringMCP)
         let rawPinkyTip = try? observation.recognizedPoint(.littleTip)
         
         indexTip.update(newPoint: rawIdxTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawIdxTip?.confidence ?? 0.0)
@@ -125,7 +134,9 @@ class HandTracker {
         wrist.update(newPoint: rawWrist.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawWrist?.confidence ?? 0.0)
         pinkyMCP.update(newPoint: rawPinkyMCP.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawPinkyMCP?.confidence ?? 0.0)
         middleTip.update(newPoint: rawMiddleTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawMiddleTip?.confidence ?? 0.0)
+        middleMCP.update(newPoint: rawMiddleMCP.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawMiddleMCP?.confidence ?? 0.0)
         ringTip.update(newPoint: rawRingTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawRingTip?.confidence ?? 0.0)
+        ringMCP.update(newPoint: rawRingMCP.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawRingMCP?.confidence ?? 0.0)
         pinkyTip.update(newPoint: rawPinkyTip.flatMap { CGPoint(x: $0.x, y: $0.y) }, confidence: rawPinkyTip?.confidence ?? 0.0)
     }
     
@@ -139,21 +150,15 @@ class HandTracker {
 }
 
 // =========================================================================
-// 3. MÁQUINA DE ESTADOS E CONTROLE DO CURSOR
+// 3. MÁQUINA DE ESTADOS E ENUMS
 // =========================================================================
 
 enum AppState: Int {
-    case navegacao = 0       // Estado 0: Navegação livre (.indexMCP + Filtro Cascata)
-    case preClique = 1       // Estado 1: Aproximação inicial (mira congelada no pixel atual)
-    case cliqueArraste = 2   // Estado 2: Dedos tocando em pinça (MouseDown -> clique ou arraste)
-    case soltar = 3          // Estado 3: Retorno à navegação (mouseUp)
-    case scroll = 4          // Estado 4: Modo Joystick (Scroll com 2 dedos)
-}
-
-enum FingerPosture: String {
-    case extended = "Aberto (Navegação)"
-    case bending = "Aproximando (Pré-Clique)"
-    case fullyBent = "Pinça Ativa (Clique)"
+    case navegacao = 0       // Estado 0: Dedão recolhido, indicador ☝️. Cursor segue indexTip livremente
+    case travaMira = 1       // Estado 1: Dedão aberto em "L". Cursor congelado no pixel
+    case cliqueArraste = 2   // Estado 2: Dedão fechou novamente (gatilho). MouseDown ativo
+    case soltar = 3          // Estado 3: Transição limpa de volta à navegação
+    case scroll = 4          // Estado 4: Mão espalmada (5 dedos) = scroll vertical
 }
 
 // =========================================================================
@@ -172,7 +177,7 @@ class OverlayController {
         window = NSWindow(contentRect: rect, styleMask: .borderless, backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = NSColor.black.withAlphaComponent(0.7)
-        window.level = .floating // Fica no topo de tudo
+        window.level = .floating
         window.ignoresMouseEvents = true
         window.hasShadow = true
         window.isMovableByWindowBackground = false
@@ -194,71 +199,77 @@ class OverlayController {
         window.contentView?.addSubview(label)
     }
     
-    func show() {
-        DispatchQueue.main.async { self.window.orderFront(nil) }
-    }
-    
-    func hide() {
-        DispatchQueue.main.async { self.window.orderOut(nil) }
-    }
+    func show() { DispatchQueue.main.async { self.window.orderFront(nil) } }
+    func hide() { DispatchQueue.main.async { self.window.orderOut(nil) } }
 }
 
 // =========================================================================
-// 4. CONTROLADOR PRINCIPAL DO APLICATIVO
+// 4. CONTROLADOR PRINCIPAL DO APLICATIVO (O "Motor")
 // =========================================================================
 
 class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let sessaoCaptura = AVCaptureSession()
     private let sequenceHandler = VNSequenceRequestHandler()
     
-    // Parâmetros calibráveis de Pinça e Aproximação refinados
-    private var limiarClique: CGFloat = 0.34        // Congela o cursor (solicitado pelo usuário)
-    private var limiarDesbloqueio: CGFloat = 0.45   // Navegação normal (dedo indicador esticado)
-    private var limiarToqueFisico: CGFloat = 0.10   // Exige que as pontas se toquem (solicitado pelo usuário)
-    private var limiarLiberacao: CGFloat = 0.15     // Solta o clique rapidamente ao separar um pouquinho
-    
-
-    // Filtro Passa-Baixa de pré-processamento quase sem lag (alpha = 0.95 para responsividade extrema)
+    // Instâncias de Filtros para suavização de movimento
     private let preFiltroX = LowPassFilter()
     private let preFiltroY = LowPassFilter()
-    
-    // Filtro One Euro ajustado para eliminar tremores (minCutoff super baixo):
-    // minCutoff = 0.05 para máxima estabilidade (mira fixa).
-    // beta = 6.0 compensa para velocidade de resposta
-    private let filtroX = OneEuroFilter(minCutoff: 0.05, beta: 6.0, dCutoff: 1.0)
-    private let filtroY = OneEuroFilter(minCutoff: 0.05, beta: 6.0, dCutoff: 1.0)
-    
-    // Filtros passa-baixa rápidos para o modo Arraste (alpha = 0.55 para snappiness imediato)
+    private let filtroX = OneEuroFilter(minCutoff: 1.80, beta: 0.0, dCutoff: 1.0)
+    private let filtroY = OneEuroFilter(minCutoff: 1.80, beta: 0.0, dCutoff: 1.0)
     private let dragFilterX = LowPassFilter()
     private let dragFilterY = LowPassFilter()
     
     private let tracker = HandTracker()
     
-    // Gerenciamento de Estado
+    // Gerenciamento de Estado do App
     private var currentState: AppState = .navegacao
-    private var rawPosture: FingerPosture = .extended
-    private var currentPosture: FingerPosture = .extended
+    
+    // === ARQUITETURA DO GATILHO COM O DEDÃO ===
+    // O ratio thumbTip↔indexMCP normalizado pelo tamanho da mão:
+    //   - Baixo (~0.2-0.4): Dedão RECOLHIDO (encostado na lateral) → Navegação / Gatilho
+    //   - Alto (~0.7-1.0+): Dedão ABERTO em "L" → Trava de Mira
+    
+    // Thresholds com hysteresis para transição Navegação ↔ Trava
+    private let thumbOpenEnterThreshold: CGFloat = 0.75   // Ratio acima disso = dedão abriu → TRAVAR
+    private let thumbOpenExitThreshold: CGFloat = 0.55    // Ratio abaixo disso = dedão fechou → sair da trava
+    
+    // Thresholds com hysteresis para detecção do Gatilho (dedão encostou de volta)
+    private let thumbCloseEnterThreshold: CGFloat = 0.40  // Ratio abaixo disso = GATILHO (clique)
+    private let thumbCloseExitThreshold: CGFloat = 0.55   // Ratio acima disso = soltou o gatilho
+    
+    // Estado com hysteresis
+    private var isThumbOpen: Bool = false     // Dedão está aberto em "L"?
+    private var isThumbClosed: Bool = false   // Dedão encostou de volta? (gatilho puxado)
+    
+    // Debouncing temporal: frames consecutivos confirmando "L"
+    private var thumbOpenFrames: Int = 0
+    private let thumbOpenMinFrames: Int = 4   // ~67ms a 60fps (rápido mas seguro)
+    
+    // Debouncing temporal: frames consecutivos confirmando gatilho
+    private var thumbCloseFrames: Int = 0
+    private let thumbCloseMinFrames: Int = 2  // ~33ms — clique precisa ser responsivo
+    
+    // Timeout de segurança para trava de mira
+    private var timeEnteredTravaMira: TimeInterval = 0.0
+    private let travaMiraTimeout: TimeInterval = 8.0  // Volta à navegação se ficar travado 8s
     
     // Ancoragem e Mira
     private var posicaoCursorAtual: CGPoint = .zero
     private var frozenPosition: CGPoint = .zero
     private var anchorHandPosition: CGPoint = .zero
     private var cursorAnchor: CGPoint = .zero
-    private var pinchOffset: CGPoint = .zero
+    private var dragOffset: CGPoint = .zero
     private var isRightClickActive: Bool = false
     
-    // Buffer circular de posições para compensação retroativa de drift de pinça
     private var historicoPosicoes: [CGPoint] = []
-    private var rawPostureHistory: [FingerPosture] = [] // Histórico para debouncing de estado
     
-    // Parâmetros de clique e arraste
-    private var timeEnteredFullyBent: TimeInterval = 0.0
+    // Temporizadores
+    private var timeEnteredGatilho: TimeInterval = 0.0
     private var lastClickReleaseTime: TimeInterval = 0.0
     private var clickCount: Int64 = 1
     private var dragActive: Bool = false
-    private var dragSensitivity: CGFloat = 2.5
     
-    // Controle do Joystick de Scroll
+    // Scroll
     private var scrollAnchorY: CGFloat = 0.0
     private var lastScrollEventTime: TimeInterval = 0.0
     private var timeEnteredScrollPosture: TimeInterval = 0.0
@@ -277,20 +288,16 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     func iniciar() {
         print("\n========================================================")
-        print("📍 MOUSE VIRTUAL ESTILO APPLE VISION PRO (Pinch & Drag)")
-        print("- Mira Responsiva: EMA (0.65) + One Euro Filter (beta: 6.0)")
-        print("- Congelamento Ultra Precoce (ratio < 0.38) para Mira Fixa")
-        print("- Arraste rápido (Drag Filter com alpha 0.55)")
-        print("- Janela de Duplo Clique de 0.5s para abertura de arquivos")
-        print("- Scroll Joystick: Levante os 2 dedos (indicador e médio) juntos!")
+        print("📍 MOUSE VIRTUAL v4.0 — ARQUITETURA GATILHO COM DEDÃO")
+        print("- Navegação: ☝️ indicador (dedão recolhido) = cursor livre")
+        print("- Trava de Mira: 🤙 Mão em L (dedão abre) = cursor congela")
+        print("- Clique: 🔫 Fechar o dedão (puxar o gatilho)")
+        print("- Hold 0.5s + mover = Drag | Hold 1.2s = Clique Direito")
+        print("- Scroll: 🖐️ Mão espalmada (5 dedos abertos)")
         print("========================================================\n")
         
-        // Inicializa a UI na thread principal
-        DispatchQueue.main.async {
-            _ = OverlayController.shared
-        }
+        DispatchQueue.main.async { _ = OverlayController.shared }
         
-
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         if status == .authorized {
             self.configurarCamera()
@@ -306,11 +313,9 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
-
     private func configurarCamera() {
         guard let dispositivo = AVCaptureDevice.default(for: .video),
               let entrada = try? AVCaptureDeviceInput(device: dispositivo) else {
-            print("❌ Erro: Câmera não encontrada no Mac!")
             return
         }
         
@@ -327,7 +332,6 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         for formato in dispositivo.formats {
             let dimensoes = CMVideoFormatDescriptionGetDimensions(formato.formatDescription)
             guard dimensoes.height <= 1080 else { continue }
-            
             let suporta60fps = formato.videoSupportedFrameRateRanges.contains { $0.maxFrameRate >= 60 }
             guard suporta60fps else { continue }
             
@@ -348,26 +352,16 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 let frameDuration = CMTime(value: 1, timescale: 60)
                 dispositivo.activeVideoMinFrameDuration = frameDuration
                 dispositivo.activeVideoMaxFrameDuration = frameDuration
-                let dim = CMVideoFormatDescriptionGetDimensions(formato.formatDescription)
-                print("🟢 Câmera ativa: \(dim.width)x\(dim.height) @ 60 FPS")
             }
             
-            // --- DESATIVAÇÃO DO CENTER STAGE ---
-            // Impede que a câmera dê zoom ou siga o rosto do usuário, garantindo que as proporções
-            // da mão fiquem estáticas em relação à tela e o cursor não dê "saltos".
             if #available(macOS 12.0, *) {
                 if AVCaptureDevice.isCenterStageEnabled {
                     AVCaptureDevice.centerStageControlMode = .cooperative
                     AVCaptureDevice.isCenterStageEnabled = false
-                    print("🚫 Center Stage desativado para garantir precisão do cursor.")
                 }
             }
-            // -----------------------------------
-            
             dispositivo.unlockForConfiguration()
-        } catch {
-            print("❌ Erro ao configurar formato da câmera.")
-        }
+        } catch {}
         
         sessaoCaptura.commitConfiguration()
         sessaoCaptura.startRunning()
@@ -381,18 +375,17 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     private func processarResultado(requisicao: VNRequest, erro: Error?) {
         guard let resultados = requisicao.results as? [VNHumanHandPoseObservation],
-              let mao = resultados.first else {
-            // Se a mão for perdida, apenas retorna
-            return
-        }
+              let mao = resultados.first else { return }
         
         tracker.update(from: mao)
-        
-
         guard tracker.isDataComplete else { return }
         
         self.avaliarMaquinaEstados()
     }
+    
+    // =========================================================================
+    // MATEMÁTICA VETORIAL DA MÃO
+    // =========================================================================
     
     private func distance(_ p1: CGPoint, _ p2: CGPoint) -> CGFloat {
         let dx = p1.x - p2.x
@@ -400,51 +393,24 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         return sqrt(dx*dx + dy*dy)
     }
     
-    // Configuração de Limiares Otimizada:
-    // - extended -> bending (bloqueio de mira): < 0.38 (bloqueia super cedo para garantir precisão no pixel exato)
-    // - bending -> fullyBent (mouseDown): < 0.17 (detecta o toque físico de forma extremamente robusta)
-    // - fullyBent -> bending (mouseUp): > 0.22 (permite liberação rápida sem emperrar)
-    // - bending -> extended (desbloqueio): > 0.44 (destrava a mira assim que a mão abre)
-    private func obterEstadoDedoRaw(ratio: CGFloat) -> FingerPosture {
-        
-        switch rawPosture {
-        case .extended:
-            if ratio < limiarClique {
-                rawPosture = .bending
-            }
-        case .bending:
-            if ratio > limiarDesbloqueio {
-                rawPosture = .extended
-            } else if ratio < limiarToqueFisico {
-                rawPosture = .fullyBent
-            }
-        case .fullyBent:
-            if ratio > limiarLiberacao {
-                rawPosture = .bending
-            }
-        }
-        return rawPosture
+    /// Calcula o ratio normalizado entre thumbTip e indexMCP.
+    /// Valores baixos (~0.2-0.4) = dedão recolhido (encostado na lateral da mão).
+    /// Valores altos (~0.7-1.0+) = dedão aberto em "L" (esticado para o lado).
+    /// A normalização por handScale garante invariância de distância à câmera.
+    private func thumbTriggerRatio(thumbTip: CGPoint, indexMCP: CGPoint, handScale: CGFloat) -> CGFloat {
+        guard handScale > 0.01 else { return 0.0 }
+        return distance(thumbTip, indexMCP) / handScale
     }
     
-    private func obterEstadoDedoDebounced(ratio: CGFloat) -> FingerPosture {
-        let raw = obterEstadoDedoRaw(ratio: ratio)
-        
-        rawPostureHistory.append(raw)
-        if rawPostureHistory.count > 2 {
-            rawPostureHistory.removeFirst()
-        }
-        
-        if rawPostureHistory.count == 2 && rawPostureHistory[0] == rawPostureHistory[1] {
-            currentPosture = rawPostureHistory[0]
-        }
-        
-        return currentPosture
+    /// Retorna o ratio normalizado Tip→MCP de um dedo (para scroll)
+    private func fingerExtensionRatio(tip: CGPoint, mcp: CGPoint, handScale: CGFloat) -> CGFloat {
+        guard handScale > 0.01 else { return 0.0 }
+        return distance(tip, mcp) / handScale
     }
     
     private func obterPontoMapeado(pontoCam: CGPoint, tela: CGRect) -> CGPoint {
         let xCamNormal = 1.0 - pontoCam.x
         let yCamNormal = 1.0 - pontoCam.y
-        
         let margin: CGFloat = 0.15
         
         var xMapeado = (xCamNormal - margin) / (1.0 - 2.0 * margin)
@@ -457,44 +423,44 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
     
     private var ultimoLogTempo: TimeInterval = 0
-    private func logEstado(ratio: CGFloat, posture: FingerPosture) {
+    private func logEstado(thumbRatio: CGFloat) {
         let agora = CFAbsoluteTimeGetCurrent()
         if agora - ultimoLogTempo > 0.5 {
-            print(String(format: "Estado: %@ | Ratio: %.3f | Postura: %@", String(describing: currentState), ratio, posture.rawValue))
+            print(String(format: "Estado: %@ | ThumbRatio: %.3f | Open:%d Close:%d | isOpen:%@ isClosed:%@",
+                         String(describing: currentState), thumbRatio,
+                         thumbOpenFrames, thumbCloseFrames,
+                         isThumbOpen ? "✅" : "❌", isThumbClosed ? "✅" : "❌"))
             ultimoLogTempo = agora
         }
     }
     
-    private func iniciarClique(agora: TimeInterval, wrist: CGPoint, indexTip: CGPoint, thumbTip: CGPoint, indexMCP: CGPoint) {
-        let finalIsRightClick = false
-        
+    // =========================================================================
+    // NÚCLEO DA LÓGICA DE AÇÕES DO MOUSE
+    // =========================================================================
+    
+    /// Chamada quando o dedão fecha (gatilho puxado) durante a trava de mira.
+    private func iniciarClique(agora: TimeInterval, wrist: CGPoint) {
         let intervalo = agora - lastClickReleaseTime
         
-        // Tempo limite do duplo clique ajustado para 0.6s (confortável, mas sem travar cliques futuros)
-        if intervalo > 0.15 && intervalo <= 0.6 && lastClickReleaseTime > 0 {
-            // Segundo clique -> Duplo Clique Esquerdo
+        if intervalo > 0.15 && intervalo <= 0.5 && lastClickReleaseTime > 0 {
             clickCount = 2
             frozenPosition = cursorAnchor
-            print("🔥 [CLIQUE] Duplo clique acionado")
+            print("🔥 [CLIQUE] Duplo clique")
         } else if intervalo <= 0.15 && lastClickReleaseTime > 0 {
-            // BOUNCE PROTECTION: Foi rápido demais (< 150ms), impossível ser humano. É tremor da câmera!
-            // Não incrementa o contador para evitar menu acidental no primeiro toque.
-            print("⚠️ [BOUNCE] Tremor ignorado, mantendo clickCount = \(clickCount)")
+            print("⚠️ [BOUNCE] Tremor ignorado")
         } else {
-            // Primeiro clique
             clickCount = 1
-            print("👆 [CLIQUE] Clique simples acionado")
+            print("👆 [CLIQUE] Clique simples")
         }
         
-        self.isRightClickActive = finalIsRightClick
-        // ANCORAGEM PELO OSSO DO INDICADOR:
-        // A ponta dos dedos (pinchCenter) se move quando você abre a mão para soltar o clique.
-        // A base do indicador (indexMCP) fica praticamente imobilizada, garantindo que o cursor não pule no final!
-        let rawMapped = obterPontoMapeado(pontoCam: indexMCP, tela: telaBounds)
-        pinchOffset = CGPoint(x: frozenPosition.x - rawMapped.x, y: frozenPosition.y - rawMapped.y)
+        self.isRightClickActive = false
+        
+        // Usar wrist como referência para offset de arraste (estável durante movimento do dedão)
+        let rawMapped = obterPontoMapeado(pontoCam: wrist, tela: telaBounds)
+        dragOffset = CGPoint(x: frozenPosition.x - rawMapped.x, y: frozenPosition.y - rawMapped.y)
         
         dragActive = false
-        timeEnteredFullyBent = agora
+        timeEnteredGatilho = agora
         anchorHandPosition = wrist
         cursorAnchor = frozenPosition
         
@@ -505,43 +471,83 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         filtroX.travarPosicao(frozenPosition.x)
         filtroY.travarPosicao(frozenPosition.y)
         
-        // Hack para Duplo Clique Lento:
-        // O macOS nativamente só aceita duplo-clique se o intervalo for < 0.5s.
-        // Como o usuário pode levar até 0.9s (para maior conforto), o macOS ignoraria nosso clickCount=2.
-        // A mágica: Injetamos um clique 1 "fantasma" no exato milissegundo antes do clique 2!
         if clickCount == 2 {
             postMouseEvent(type: .leftMouseDown, point: frozenPosition, clickCount: 1, isRightClick: false)
             postMouseEvent(type: .leftMouseUp, point: frozenPosition, clickCount: 1, isRightClick: false)
         }
         
-        let dispatchClickCount: Int64 = finalIsRightClick ? 1 : clickCount
-        postMouseEvent(type: .leftMouseDown, point: frozenPosition, clickCount: dispatchClickCount, isRightClick: finalIsRightClick)
+        postMouseEvent(type: .leftMouseDown, point: frozenPosition, clickCount: clickCount, isRightClick: false)
     }
+    
+    // =========================================================================
+    // MÁQUINA DE ESTADOS — ARQUITETURA GATILHO COM DEDÃO
+    //
+    // Navegação (☝️ + dedão recolhido)
+    //     │
+    //     │ dedão abre em "L" (thumbRatio sobe > 0.75 por 4 frames)
+    //     ▼
+    // Trava de Mira (cursor congelado)
+    //     │
+    //     │ dedão fecha (thumbRatio cai < 0.40 por 2 frames)
+    //     ▼
+    // Clique/Arraste (mouseDown ativo)
+    //     │
+    //     │ dedão abre novamente (thumbRatio sobe > 0.55)
+    //     ▼
+    // Soltar → Navegação
+    //
+    // =========================================================================
     
     private func avaliarMaquinaEstados() {
         guard let pIndexTip = tracker.indexTip.getPoint(),
               let pIndexMCP = tracker.indexMCP.getPoint(),
               let pThumbTip = tracker.thumbTip.getPoint(),
               let pWrist = tracker.wrist.getPoint(),
-              let pPinkyMCP = tracker.pinkyMCP.getPoint() else {
-            return
-        }
+              let pPinkyMCP = tracker.pinkyMCP.getPoint() else { return }
         
         let agora = CFAbsoluteTimeGetCurrent()
         
-        let dIndexThumb = distance(pIndexTip, pThumbTip)
-        
-        // Cálculo Ultra-Robusto (Invariante à Rotação 3D):
-        // Formamos um triângulo com o Pulso, a Base do Indicador (IndexMCP) e a Base do Mindinho (PinkyMCP).
-        // Pegamos a MAIOR aresta visível desse triângulo. Assim, não importa se você vira a mão
-        // pra cima, pro lado ou pra você: a escala sempre será baseada no lado que sofreu menos distorção 2D!
+        // Escala robusta da mão para invariância de distância (triângulo MCP-Wrist-PinkyMCP)
         let edge1 = distance(pIndexMCP, pWrist)
         let edge2 = distance(pIndexMCP, pPinkyMCP)
         let edge3 = distance(pWrist, pPinkyMCP)
         let handScale = max(edge1, max(edge2, edge3))
         
-        let ratio = handScale > 0.01 ? (dIndexThumb / handScale) : 1.0
+        // === CÁLCULO DO RATIO DO DEDÃO (a métrica principal) ===
+        let thumbRatio = thumbTriggerRatio(thumbTip: pThumbTip, indexMCP: pIndexMCP, handScale: handScale)
         
+        // === ATUALIZAR ESTADOS DO DEDÃO COM HYSTERESIS ===
+        // Dedão aberto em "L"?
+        if isThumbOpen {
+            isThumbOpen = thumbRatio > thumbOpenExitThreshold
+        } else {
+            isThumbOpen = thumbRatio > thumbOpenEnterThreshold
+        }
+        
+        // Dedão fechado (gatilho puxado)?
+        if isThumbClosed {
+            isThumbClosed = thumbRatio < thumbCloseExitThreshold
+        } else {
+            isThumbClosed = thumbRatio < thumbCloseEnterThreshold
+        }
+        
+        // === DEBOUNCING TEMPORAL: DEDÃO ABERTO ("L") ===
+        if isThumbOpen {
+            thumbOpenFrames += 1
+        } else {
+            thumbOpenFrames = 0
+        }
+        let isThumbOpenConfirmed = thumbOpenFrames >= thumbOpenMinFrames
+        
+        // === DEBOUNCING TEMPORAL: DEDÃO FECHADO (GATILHO) ===
+        if isThumbClosed {
+            thumbCloseFrames += 1
+        } else {
+            thumbCloseFrames = 0
+        }
+        let isThumbCloseConfirmed = thumbCloseFrames >= thumbCloseMinFrames
+        
+        // === DETECÇÃO DE SCROLL (MÃO ESPALMADA — 5 dedos abertos) ===
         var isScrollGestureRaw = false
         if let pMiddleTip = tracker.middleTip.getPoint(),
            let pRingTip = tracker.ringTip.getPoint(),
@@ -552,9 +558,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             let dPinkyWrist = distance(pPinkyTip, pWrist)
             let dThumbWrist = distance(pThumbTip, pWrist)
             
-            // Heurística de "Mão de PARE" (Palma aberta de frente para a câmera).
-            // A Inteligência Artificial mapeia perfeitamente as juntas nessa posição.
-            // Todos os dedos devem estar esticados (distância grande do pulso)
+            // Todos os 5 dedos devem estar afastados do pulso
             let isStopSign = dIndexWrist > handScale * 1.0 &&
                              dMiddleWrist > handScale * 1.0 &&
                              dRingWrist > handScale * 0.9 &&
@@ -562,172 +566,165 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                              dThumbWrist > handScale * 0.9
             
             isScrollGestureRaw = isStopSign
-            
-            if isScrollGestureRaw {
-                if scrollFrames == 0 {
-                    timeEnteredScrollPosture = agora
-                }
-                scrollFrames += 1
-                nonScrollFrames = 0
-            } else {
-                nonScrollFrames += 1
-                scrollFrames = 0
-            }
         }
         
-        let isScrollPosture = scrollFrames > 3
+        // Debouncing do scroll (frames consecutivos)
+        if isScrollGestureRaw {
+            if scrollFrames == 0 { timeEnteredScrollPosture = agora }
+            scrollFrames += 1
+            nonScrollFrames = 0
+        } else {
+            nonScrollFrames += 1
+            scrollFrames = 0
+        }
         let shouldExitScroll = nonScrollFrames > 5
-        let isScrollGestureActive = isScrollPosture && (agora - timeEnteredScrollPosture >= 1.0)
+        let isScrollGestureActive = scrollFrames > 3 && (agora - timeEnteredScrollPosture >= 1.0)
         
-        let posture = obterEstadoDedoDebounced(ratio: ratio)
-        logEstado(ratio: ratio, posture: posture)
+        logEstado(thumbRatio: thumbRatio)
         
+        // =====================================================================
+        // CONTROLE DE ESTADOS (STATE MACHINE)
+        // =====================================================================
         switch currentState {
-        case .navegacao: // Estado 0 — Navegação Livre
+            
+        // =================================================================
+        // ESTADO 0: NAVEGAÇÃO — ☝️ indicador + dedão recolhido
+        // O cursor segue a ponta do indicador livremente.
+        // Quando o dedão abre em "L", transita para Trava de Mira.
+        // =================================================================
+        case .navegacao:
+            // Scroll tem prioridade (mão espalmada, 5 dedos)
             if isScrollGestureActive {
                 currentState = .scroll
                 let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
                 scrollAnchorY = mappedPoint.y
                 OverlayController.shared.show()
-                print("↕️ [ESTADO 4] Entrando no Modo Scroll (Joystick)")
+                print("↕️ [ESTADO 4] Entrando no Modo Scroll (mão espalmada)")
                 return
             }
             
-            if posture == .extended {
-                // Reduzido para 0.35s! Libera a mira super rápido após soltar o clique, dando agilidade.
-                if agora - lastClickReleaseTime <= 0.35 && lastClickReleaseTime > 0 {
-                    // JANELA DE CLIQUE MULTIPLO: A mira fica ancorada na frozenPosition.
-                    // Permite abrir a mão o quanto quiser para preparar o duplo/triplo clique sem arrastar o cursor.
-                    posicaoCursorAtual = frozenPosition
-                    
-                    // Alimenta os filtros para evitar pulos quando a janela de tempo acabar
-                    let _ = preFiltroX.aplicar(valor: frozenPosition.x, alpha: 0.95)
-                    let _ = preFiltroY.aplicar(valor: frozenPosition.y, alpha: 0.95)
-                    filtroX.travarPosicao(frozenPosition.x)
-                    filtroY.travarPosicao(frozenPosition.y)
-                    
-                    historicoPosicoes.append(frozenPosition)
-                    if historicoPosicoes.count > 10 { historicoPosicoes.removeFirst() }
-                    
-                    postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
-                } else {
-                    // MIRA PELO CENTRO DA PINÇA (Elimina o desvio de mira quando o dedo dobra)
-                    let pinchCenter = CGPoint(x: (pIndexTip.x + pThumbTip.x) / 2.0, y: (pIndexTip.y + pThumbTip.y) / 2.0)
-                    let mappedPoint = obterPontoMapeado(pontoCam: pinchCenter, tela: telaBounds)
-                    
-                    // --- LÓGICA DE DESACELERAÇÃO GRAVITACIONAL ---
-                    // Começa a frear aos 0.45 (indicador apontando), e freia quase totalmente quando chega perto de 0.34 (pausa antecipada)
-                    let maxRatio: CGFloat = 0.45
-                    let minRatio: CGFloat = 0.34
-                    let clampedRatio = max(minRatio, min(maxRatio, ratio))
-                    let normalized = (clampedRatio - minRatio) / (maxRatio - minRatio) // 0.0 (perto) a 1.0 (longe)
-                    
-                    // Usando uma curva não-linear (potência) para que fique pesado mais rápido no final
-                    let dynamicCutoff = 0.001 + (1.80 - 0.001) * (normalized * normalized) // 1.80 para agilidade extrema com a mão aberta!
-                    let dynamicBeta = 0.0 + (6.0 - 0.0) * normalized // Zera o momentum quando próximo do clique
-                    filtroX.minCutoff = dynamicCutoff
-                    filtroY.minCutoff = dynamicCutoff
-                    filtroX.beta = dynamicBeta
-                    filtroY.beta = dynamicBeta
-                    
-                    let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.95)
-                    let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.95)
-                    
-                    let filteredX = filtroX.filtrar(valor: preX, timestamp: agora)
-                    let filteredY = filtroY.filtrar(valor: preY, timestamp: agora)
-                    let filteredPoint = CGPoint(x: filteredX, y: filteredY)
-                    
-                    posicaoCursorAtual = filteredPoint
-                    frozenPosition = filteredPoint
-                    
-                    historicoPosicoes.append(filteredPoint)
-                    if historicoPosicoes.count > 10 { // Retrocesso de 10 frames (~166ms) garante que a mira congele antes do dedo se mover
-                        historicoPosicoes.removeFirst()
-                    }
-                    
-                    postMouseEvent(type: .mouseMoved, point: posicaoCursorAtual, clickCount: 1, isRightClick: false)
-                }
-            } else if posture == .bending {
-                currentState = .preClique
-                // FIM DO "PULINHO": Congela exatamente onde o cursor está agora, sem voltar no tempo!
+            // Dedão abriu em "L"? → Travar cursor!
+            if isThumbOpenConfirmed {
+                currentState = .travaMira
                 frozenPosition = posicaoCursorAtual
+                timeEnteredTravaMira = agora
                 historicoPosicoes.removeAll()
-                print("🔒 [ESTADO 1] Cursor totalmente congelado para o clique.")
-            } else if posture == .fullyBent {
-                currentState = .cliqueArraste
-                frozenPosition = posicaoCursorAtual
-                historicoPosicoes.removeAll()
-                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip, indexMCP: pIndexMCP)
+                print("🤙 [ESTADO 1] Mão em L! Trava de Mira ativada. Cursor congelado.")
+                return
             }
             
-        case .preClique: // Estado 1 — Pré-Clique
-            if posture == .extended {
+            // Navegação livre: cursor segue a ponta do indicador
+            let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+            
+            let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.95)
+            let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.95)
+            let filteredX = filtroX.filtrar(valor: preX, timestamp: agora)
+            let filteredY = filtroY.filtrar(valor: preY, timestamp: agora)
+            let filteredPoint = CGPoint(x: filteredX, y: filteredY)
+            
+            posicaoCursorAtual = filteredPoint
+            frozenPosition = filteredPoint // Mantém atualizado caso congele repentinamente
+            
+            historicoPosicoes.append(filteredPoint)
+            if historicoPosicoes.count > 10 { historicoPosicoes.removeFirst() }
+            
+            postMouseEvent(type: .mouseMoved, point: posicaoCursorAtual, clickCount: 1, isRightClick: false)
+            
+        // =================================================================
+        // ESTADO 1: TRAVA DE MIRA — Dedão aberto em "L", cursor congelado
+        // Aguarda o dedão fechar (puxar o gatilho) para clicar.
+        // Se o dedão recolher sem chegar ao gatilho, volta para navegação.
+        // =================================================================
+        case .travaMira:
+            // Timeout de segurança
+            if agora - timeEnteredTravaMira > travaMiraTimeout {
                 currentState = .navegacao
-                print("☝️ [ESTADO 0] Retornando para Navegação livre.")
-            } else if posture == .bending {
-                // Congelamento total: o cursor não se move enquanto o dedo estiver dobrando para clicar.
-                // Isso garante que o clique aconteça no lugar exato onde o movimento de pinça começou.
-                posicaoCursorAtual = frozenPosition
-                
-                // Atualizar rastreamento interno, mas sem mover o cursor visível.
-                let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
-                let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.95)
-                let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.95)
-                _ = filtroX.filtrar(valor: preX, timestamp: agora)
-                _ = filtroY.filtrar(valor: preY, timestamp: agora)
-                
-                // Travar os filtros na posição congelada para evitar saltos ou desvios ao retomar.
+                thumbOpenFrames = 0
+                thumbCloseFrames = 0
+                preFiltroX.y = frozenPosition.x
+                preFiltroY.y = frozenPosition.y
                 filtroX.travarPosicao(frozenPosition.x)
                 filtroY.travarPosicao(frozenPosition.y)
-                
-                postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
-            } else if posture == .fullyBent {
-                currentState = .cliqueArraste
-                iniciarClique(agora: agora, wrist: pWrist, indexTip: pIndexTip, thumbTip: pThumbTip, indexMCP: pIndexMCP)
+                print("⏰ [TIMEOUT] Trava expirou após \(travaMiraTimeout)s. Retornando à navegação.")
+                return
             }
             
-        case .cliqueArraste: // Estado 2 — Clique / Arraste
-            if posture == .fullyBent {
-                let tempoPassado = agora - timeEnteredFullyBent
+            // Dedão FECHOU completamente? → Puxou o gatilho → CLIQUE!
+            if isThumbCloseConfirmed {
+                currentState = .cliqueArraste
+                iniciarClique(agora: agora, wrist: pWrist)
+                return
+            }
+            
+            // Dedão RECOLHEU (sem chegar a fechar completamente)? → Desistiu
+            // Isso acontece quando o ratio volta para a zona neutra (nem aberto nem fechado)
+            if !isThumbOpen && !isThumbClosed {
+                thumbOpenFrames = 0
+                thumbCloseFrames = 0
+                currentState = .navegacao
+                preFiltroX.y = frozenPosition.x
+                preFiltroY.y = frozenPosition.y
+                filtroX.travarPosicao(frozenPosition.x)
+                filtroY.travarPosicao(frozenPosition.y)
+                print("☝️ [ESTADO 0] Dedão recolheu sem clicar. Voltou à navegação.")
+                return
+            }
+            
+            // Alimentar filtros silenciosamente para evitar salto ao retornar
+            let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
+            let preX = preFiltroX.aplicar(valor: mappedPoint.x, alpha: 0.95)
+            let preY = preFiltroY.aplicar(valor: mappedPoint.y, alpha: 0.95)
+            _ = filtroX.filtrar(valor: preX, timestamp: agora)
+            _ = filtroY.filtrar(valor: preY, timestamp: agora)
+            filtroX.travarPosicao(frozenPosition.x)
+            filtroY.travarPosicao(frozenPosition.y)
+            
+            // Manter cursor congelado no OS
+            postMouseEvent(type: .mouseMoved, point: frozenPosition, clickCount: 1, isRightClick: false)
+            
+        // =================================================================
+        // ESTADO 2: CLIQUE/ARRASTE — Dedão fechado (gatilho puxado), mouseDown ativo
+        // Detecta: hold para right-click, movimento para drag.
+        // Quando o dedão abre novamente, solta o clique.
+        // =================================================================
+        case .cliqueArraste:
+            if isThumbClosed {
+                // Dedão ainda fechado — avaliar hold/drag
+                let tempoPassado = agora - timeEnteredGatilho
                 
-                // --- MENU DIREITO (LONG PRESS) ---
-                // Se for o 1º clique, segurar por 0.8s e não tiver movido a mão (arrastado), abre o menu!
-                if clickCount == 1 && tempoPassado > 0.8 && !isRightClickActive && !dragActive {
-                    print("⚡️ [CLIQUE] Segurou parado -> Menu (Clique Direito)")
+                // Clique Direito: hold por 1.2 segundos
+                if clickCount == 1 && tempoPassado > 1.2 && !isRightClickActive && !dragActive {
+                    print("🖱️ [CLIQUE] Hold 1.2s → Menu Direito")
                     postMouseEvent(type: .leftMouseUp, point: posicaoCursorAtual, clickCount: 1, isRightClick: false)
                     postMouseEvent(type: .leftMouseDown, point: posicaoCursorAtual, clickCount: 1, isRightClick: true)
                     self.isRightClickActive = true
                 }
                 
-                // --- ARRASTAR (POR MOVIMENTO) ---
-                // Só arrasta se for o 1º clique e o menu direito ainda não tiver aberto
+                // Iniciar Arraste (detectar movimento do braço via wrist)
+                // O indicador continua reto e visível → rastreamento 100% estável
                 if !dragActive && !isRightClickActive {
                     let curX = 1.0 - pWrist.x
                     let curY = 1.0 - pWrist.y
                     let ancX = 1.0 - anchorHandPosition.x
                     let ancY = 1.0 - anchorHandPosition.y
-                    let dx = curX - ancX
-                    let dy = curY - ancY
-                    let deltaDist = sqrt(dx*dx + dy*dy)
+                    let deltaDist = sqrt(pow(curX - ancX, 2) + pow(curY - ancY, 2))
                     
-                    // O arraste é puramente por movimento. Moveu a mão um pouquinho (0.015), gruda!
                     if clickCount == 1 && deltaDist > 0.015 {
                         dragActive = true
                         anchorHandPosition = pWrist
                         cursorAnchor = frozenPosition
                         dragFilterX.y = frozenPosition.x
                         dragFilterY.y = frozenPosition.y
-                        print("🔄 [ESTADO 2 - ARRASTE] Drag ativado instantaneamente por movimento.")
+                        print("🔄 [ESTADO 2] Drag ativado — indicador reto, rastreamento estável")
                     }
                 }
                 
+                // Atualizar posição durante arraste (usando wrist — estável com dedão fechado)
                 if dragActive {
-                    // A base do indicador não abre e fecha durante o soltar, evitando aquele salto no final do arraste
-                    let rawMapped = obterPontoMapeado(pontoCam: pIndexMCP, tela: telaBounds)
-                    let targetX = rawMapped.x + pinchOffset.x
-                    let targetY = rawMapped.y + pinchOffset.y
+                    let rawMapped = obterPontoMapeado(pontoCam: pWrist, tela: telaBounds)
+                    let targetX = rawMapped.x + dragOffset.x
+                    let targetY = rawMapped.y + dragOffset.y
                     
-                    // Alpha mega reduzido (de 0.55 para 0.18) para a mira ser pesada e exata enquanto seleciona texto!
                     let filteredX = dragFilterX.aplicar(valor: targetX, alpha: 0.18)
                     let filteredY = dragFilterY.aplicar(valor: targetY, alpha: 0.18)
                     
@@ -738,72 +735,71 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                     postMouseEvent(type: .leftMouseDragged, point: posicaoCursorAtual, clickCount: clickCount, isRightClick: isRightClickActive)
                 }
             } else {
+                // Dedão abriu novamente → Soltar clique (mouseUp)
                 let dispatchClickCount: Int64 = isRightClickActive ? 1 : clickCount
                 postMouseEvent(type: .leftMouseUp, point: posicaoCursorAtual, clickCount: dispatchClickCount, isRightClick: isRightClickActive)
-                print(String(format: "💥 [SOLTOU] leftMouseUp em %@ | clickCount: %d | RightClick: %@", String(describing: posicaoCursorAtual), dispatchClickCount, isRightClickActive ? "SIM" : "NAO"))
+                
+                lastClickReleaseTime = agora
+                thumbOpenFrames = 0
+                thumbCloseFrames = 0
                 
                 if !dragActive {
-                    lastClickReleaseTime = agora
-                    if posture == .extended {
-                        currentState = .navegacao
-                        preFiltroX.y = posicaoCursorAtual.x
-                        preFiltroY.y = posicaoCursorAtual.y
-                        filtroX.travarPosicao(posicaoCursorAtual.x)
-                        filtroY.travarPosicao(posicaoCursorAtual.y)
-                        print("☝️ [ESTADO 0] Retornando para Navegação.")
-                    } else if posture == .bending {
-                        currentState = .preClique
-                        frozenPosition = posicaoCursorAtual
-                        print("🔒 [ESTADO 1] Retornando para Pré-Clique (Manter mira congelada).")
-                    }
+                    currentState = .navegacao
+                    preFiltroX.y = posicaoCursorAtual.x
+                    preFiltroY.y = posicaoCursorAtual.y
+                    filtroX.travarPosicao(posicaoCursorAtual.x)
+                    filtroY.travarPosicao(posicaoCursorAtual.y)
+                    print("☝️ [ESTADO 0] Gatilho solto. Retornando à navegação.")
                 } else {
-                    // O arraste acabou. Como solicitado, vamos emitir um clique direito automático
-                    // para abrir o menu de contexto (útil para copiar texto após selecionar).
-                    postMouseEvent(type: .rightMouseDown, point: posicaoCursorAtual, clickCount: 1, isRightClick: true)
-                    postMouseEvent(type: .rightMouseUp, point: posicaoCursorAtual, clickCount: 1, isRightClick: true)
-                    print("⚡️ [AUTO MENU] Clique direito disparado automaticamente após o arraste!")
-                    
                     currentState = .soltar
-                    print("🛑 [ESTADO 3] Finalizando Drag.")
+                    print("🛑 [ESTADO 3] Drag finalizado.")
                 }
             }
             
-        case .soltar: // Estado 3 — Soltar
+        // =================================================================
+        // ESTADO 3: SOLTAR — Transição limpa de volta à navegação
+        // =================================================================
+        case .soltar:
             currentState = .navegacao
+            thumbOpenFrames = 0
+            thumbCloseFrames = 0
             preFiltroX.y = posicaoCursorAtual.x
             preFiltroY.y = posicaoCursorAtual.y
             filtroX.travarPosicao(posicaoCursorAtual.x)
             filtroY.travarPosicao(posicaoCursorAtual.y)
-            print("☝️ [ESTADO 0] Retornando para Navegação após Soltar.")
             
-        case .scroll: // Estado 4 — Modo Scroll
+        // =================================================================
+        // ESTADO 4: SCROLL — Mão espalmada (5 dedos abertos, joystick vertical)
+        // =================================================================
+        case .scroll:
             if shouldExitScroll {
                 currentState = .navegacao
+                thumbOpenFrames = 0
+                thumbCloseFrames = 0
                 OverlayController.shared.hide()
-                print("☝️ [ESTADO 0] Saindo do Modo Scroll")
+                print("↕️ [SCROLL] Saindo do modo scroll")
             } else {
                 let mappedPoint = obterPontoMapeado(pontoCam: pIndexTip, tela: telaBounds)
-                let deltaY = scrollAnchorY - mappedPoint.y // Positivo = Mão subiu = Scroll UP
+                let deltaY = scrollAnchorY - mappedPoint.y
                 
-                // Zona morta de 20 pixels para não rolar se a mão estiver parada
-                if abs(deltaY) > 20 {
-                    if agora - lastScrollEventTime > 0.04 { // 25 Hz (suavidade extrema)
-                        let rawDelta = deltaY - (deltaY > 0 ? 20 : -20)
-                        let magnitude = abs(rawDelta)
-                        
-                        // Curva Quadrática: Controle microscópico perto do centro, velocidade hiper-rápida nas pontas!
-                        let speed = (magnitude * magnitude) * 0.003
-                        let scrollSpeed = deltaY > 0 ? -speed : speed
-                        
-                        if let scrollEvent = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: Int32(scrollSpeed), wheel2: 0, wheel3: 0) {
-                            scrollEvent.post(tap: CGEventTapLocation.cghidEventTap)
-                        }
-                        lastScrollEventTime = agora
+                if abs(deltaY) > 20 && agora - lastScrollEventTime > 0.04 {
+                    let rawDelta = deltaY - (deltaY > 0 ? 20 : -20)
+                    let magnitude = abs(rawDelta)
+                    let speed = (magnitude * magnitude) * 0.003
+                    let scrollSpeed = deltaY > 0 ? -speed : speed
+                    
+                    if let scrollEvent = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: Int32(scrollSpeed), wheel2: 0, wheel3: 0) {
+                        scrollEvent.post(tap: CGEventTapLocation.cghidEventTap)
                     }
+                    lastScrollEventTime = agora
                 }
             }
         }
     }
+    
+    // =========================================================================
+    // INJEÇÃO DE EVENTOS NO MACOS
+    // =========================================================================
     
     private func postMouseEvent(type: CGEventType, point: CGPoint, clickCount: Int64, isRightClick: Bool) {
         var finalType = type
@@ -823,13 +819,7 @@ class AppController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         event?.post(tap: .cghidEventTap)
         
         if finalType == .leftMouseDown || finalType == .rightMouseDown {
-            DispatchQueue.main.async {
-                NSSound(named: "Pop")?.play()
-            }
+            DispatchQueue.main.async { NSSound(named: "Pop")?.play() }
         }
     }
 }
-
-// =========================================================================
-// O AppController agora será iniciado pelo AppDelegate do aplicativo Xcode.
-// =========================================================================
