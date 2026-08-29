@@ -23,8 +23,8 @@ O **HandCursor App** é um aplicativo que permite controlar o cursor do sistema 
 A nova **Arquitetura Gatilho com Dedão** foi projetada ergonomicamente baseada na limitação dos tendões, permitindo um clique extremamente preciso onde o cursor não "pula" na hora de clicar.
 
 - ☝️ **Navegação Livre**: Aponte o dedo indicador para cima (com o dedão recolhido). O cursor acompanha o seu dedo de forma suave, estabilizado por filtros *OneEuro*.
-- 🤙 **Trava de Mira (L)**: Abra o dedão para o lado, formando um "L". O cursor irá **congelar no pixel exato** em que você está mirando.
-- 🔫 **Clique / Arraste (Gatilho)**: Com o cursor travado (mão em "L"), puxe o dedão de volta para perto da mão (puxando o gatilho) para **clicar**. Mantenha o gatilho puxado e mova o pulso para **arrastar**.
+-  **Trava de Mira (L)**: Abra o dedão para o lado, formando um "L". O cursor irá **congelar no pixel exato** em que você está mirando.
+-  **Clique / Arraste (Gatilho)**: Com o cursor travado (mão em "L"), puxe o dedão de volta para perto da mão (puxando o gatilho) para **clicar**. Mantenha o gatilho puxado e mova o pulso para **arrastar**.
 - 🖱️ **Clique Direito**: Puxe o gatilho e segure por 1.2 segundos.
 - 🖐️ **Scroll (Mão Espalmada)**: Abra a mão completamente (5 dedos esticados) e mova para cima ou para baixo para fazer rolagem (scroll) de forma acelerada.
 
