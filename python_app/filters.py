@@ -35,13 +35,19 @@ class OneEuroFilter:
         self._d_cutoff = d_cutoff
         self._x_filter = LowPassFilter()
         self._dx_filter = LowPassFilter()
+        self._last_timestamp: float | None = None
 
     def _smoothing_factor(self, te: float, cutoff: float) -> float:
         r = 2.0 * math.pi * cutoff * te
         return r / (r + 1.0)
 
     def filter(self, value: float, timestamp: float) -> float:
-        te = 1.0 / 30.0  # Delta fixo assumindo ~30 FPS do MediaPipe
+        # Calcula delta time real entre frames (evita assumir 30fps fixo)
+        if self._last_timestamp is not None and timestamp > self._last_timestamp:
+            te = timestamp - self._last_timestamp
+        else:
+            te = 1.0 / 30.0  # Fallback para primeiro frame
+        self._last_timestamp = timestamp
 
         if self._x_filter.y is not None:
             dx = (value - self._x_filter.y) / te

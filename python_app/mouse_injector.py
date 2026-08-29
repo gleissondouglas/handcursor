@@ -3,7 +3,13 @@
 # Mesma API nativa que usávamos no Swift (CGEvent).
 # =========================================================================
 import Quartz
-import subprocess
+
+# Som de feedback nativo via AppKit (sem spawnar processos)
+try:
+    from AppKit import NSSound
+    _click_sound = NSSound.soundNamed_("Pop")
+except Exception:
+    _click_sound = None
 
 
 # Constantes de tipo de evento para facilitar uso externo
@@ -76,12 +82,9 @@ def post_scroll_event(scroll_speed: float):
 
 
 def _play_click_sound():
-    """Toca o som 'Pop' do sistema como feedback de clique."""
-    try:
-        subprocess.Popen(
-            ["afplay", "/System/Library/Sounds/Pop.aiff"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except Exception:
-        pass  # Silenciosamente ignora se não conseguir tocar o som
+    """Toca o som 'Pop' do sistema como feedback de clique (nativo, sem subprocess)."""
+    if _click_sound:
+        # stop() + play() garante que cliques rápidos consecutivos toquem corretamente
+        _click_sound.stop()
+        _click_sound.play()
+

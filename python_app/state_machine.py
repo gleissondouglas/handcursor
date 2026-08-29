@@ -5,13 +5,13 @@
 #
 # Fluxo:
 #   Navegação (☝️ + dedão recolhido)
-#       │ dedão abre em "L" (ratio > 0.75 por 4 frames)
+#       │ dedão abre em "L" (ratio > 0.26 por 4 frames)
 #       ▼
 #   Trava de Mira (cursor congelado)
-#       │ dedão fecha (ratio < 0.40 por 2 frames)
+#       │ dedão fecha (ratio < 0.20 por 2 frames)
 #       ▼
 #   Clique/Arraste (mouseDown ativo)
-#       │ dedão abre novamente (ratio > 0.55)
+#       │ dedão abre novamente (ratio > 0.23)
 #       ▼
 #   Soltar → Navegação
 # =========================================================================
@@ -88,11 +88,14 @@ class StateMachine:
         self.scroll_frames = 0
         self.non_scroll_frames = 0
 
-        # Histórico
-        self.position_history: list[tuple[float, float]] = []
-
         # Log throttle
         self._last_log_time = 0.0
+
+        # Scroll sub-pixel accumulator (evita truncamento para 0)
+        self._scroll_accumulator = 0.0
+
+        # Flag para tracking ativo (proteção contra mouse travado)
+        self._mouse_is_down = False
 
     # =====================================================================
     # MATEMÁTICA VETORIAL
@@ -131,6 +134,25 @@ class StateMachine:
         self.pre_filter_y.y = self.cursor_pos[1]
         self.euro_x.lock_position(self.cursor_pos[0])
         self.euro_y.lock_position(self.cursor_pos[1])
+
+    def handle_lost_tracking(self):
+        """
+        Chamado quando a mão sai do campo de visão da câmera.
+        Libera qualquer botão de mouse pressionado para evitar que o cursor
+        fique permanentemente travado em estado de arraste/clique.
+        """
+        if self._mouse_is_down:
+            dispatch_count = 1 if self.is_right_click else self.click_count
+            post_mouse_event(
+                LEFT_MOUSE_UP, self.cursor_pos,
+                click_count=dispatch_count, is_right_click=self.is_right_click,
+            )
+            self._mouse_is_down = False
+            print("⚠️ [SAFETY] Mão perdida! Mouse liberado para evitar travamento.")
+
+        if self.state != AppState.NAVEGACAO:
+            self._reset_to_navegacao()
+            print("⚠️ [SAFETY] Estado resetado para NAVEGAÇÃO (mão fora do frame).")
 
     # =====================================================================
     # LOG
@@ -183,11 +205,8 @@ class StateMachine:
         self.euro_x.lock_position(self.frozen_pos[0])
         self.euro_y.lock_position(self.frozen_pos[1])
 
-        if self.click_count == 2:
-            post_mouse_event(LEFT_MOUSE_DOWN, self.frozen_pos, click_count=1)
-            post_mouse_event(LEFT_MOUSE_UP, self.frozen_pos, click_count=1)
-
         post_mouse_event(LEFT_MOUSE_DOWN, self.frozen_pos, click_count=self.click_count)
+        self._mouse_is_down = True
 
     # =====================================================================
     # PROCESSAMENTO PRINCIPAL — CHAMADO A CADA FRAME
@@ -201,23 +220,36 @@ class StateMachine:
         now = time.time()
 
         # Escala robusta da mão (triângulo indexMCP-wrist-pinkyMCP)
+        # Calculamos as distâncias entre pulso, base do indicador e base do mindinho.
+        # A maior dessas distâncias é usada como uma "escala mestre" da mão.
+        # Por que? Para que o limiar (threshold) do dedão funcione igual se a mão 
+        # estiver perto (grande) ou longe (pequena) da câmera.
         edge1 = self._distance(hand.index_mcp, hand.wrist)
         edge2 = self._distance(hand.index_mcp, hand.pinky_mcp)
         edge3 = self._distance(hand.wrist, hand.pinky_mcp)
         hand_scale = max(edge1, edge2, edge3)
 
         # === CÁLCULO DO RATIO DO DEDÃO ===
+        # Ratio (proporção): Distância do dedão até o dedo indicador, dividida pela escala da mão.
+        # Se for baixo (dedão colado no indicador), significa recolhido/gatilho apertado.
+        # Se for alto (dedão afastado), significa mão aberta em "L" (trava de mira).
         thumb_ratio = self._thumb_trigger_ratio(hand.thumb_tip, hand.index_mcp, hand_scale)
 
         # === HYSTERESIS DO DEDÃO ===
+        # Hysteresis é um conceito para evitar "pisca-pisca" no limiar.
+        # Usa um valor para "entrar" no estado e um valor diferente para "sair".
         if self.is_thumb_open:
+            # Se o dedão já estava aberto, precisa baixar mais que EXIT para fechar
             self.is_thumb_open = thumb_ratio > config.THUMB_OPEN_EXIT
         else:
+            # Se estava fechado, precisa subir mais que ENTER para abrir
             self.is_thumb_open = thumb_ratio > config.THUMB_OPEN_ENTER
 
         if self.is_thumb_closed:
+            # Se já puxou o gatilho, tem que soltar bastante para desativar
             self.is_thumb_closed = thumb_ratio < config.THUMB_CLOSE_EXIT
         else:
+            # Se não puxou, tem que fechar bem apertado para ativar
             self.is_thumb_closed = thumb_ratio < config.THUMB_CLOSE_ENTER
 
         # === DEBOUNCING: DEDÃO ABERTO ("L") ===
@@ -281,7 +313,7 @@ class StateMachine:
             self._estado_clique_arraste(hand, now)
 
         elif self.state == AppState.SOLTAR:
-            self._estado_soltar()
+            self._estado_soltar(thumb_close_confirmed, now)
 
         elif self.state == AppState.SCROLL:
             self._estado_scroll(hand, now, should_exit_scroll)
@@ -291,20 +323,23 @@ class StateMachine:
     # =====================================================================
 
     def _estado_navegacao(self, hand: HandData, now: float, thumb_open_ok: bool, scroll_ok: bool):
-        # Scroll tem prioridade
+        # MODO NAVEGAÇÃO: Estado padrão. O cursor segue o dedo livremente.
+
+        # Scroll tem prioridade sobre tudo
         if scroll_ok:
             self.state = AppState.SCROLL
+            # Anota a posição vertical que o dedo estava ao iniciar o scroll
             mapped = self._map_to_screen(hand.index_tip)
             self.scroll_anchor_y = mapped[1]
             print("↕️ [ESTADO 4] Entrando no Modo Scroll (mão espalmada)")
             return
 
-        # Dedão abriu em "L" → Travar cursor
+        # Dedão abriu em "L" → Transição para Travar cursor
         if thumb_open_ok:
             self.state = AppState.TRAVA_MIRA
+            # Congela o cursor onde ele está nesse exato instante
             self.frozen_pos = self.cursor_pos
             self.time_entered_trava = now
-            self.position_history.clear()
             print("🤙 [ESTADO 1] Mão em L! Trava de Mira ativada. Cursor congelado.")
             return
 
@@ -318,10 +353,6 @@ class StateMachine:
 
         self.cursor_pos = (filt_x, filt_y)
         self.frozen_pos = self.cursor_pos
-
-        self.position_history.append(self.cursor_pos)
-        if len(self.position_history) > config.MAX_POSITION_HISTORY:
-            self.position_history.pop(0)
 
         post_mouse_event(MOUSE_MOVED, self.cursor_pos)
 
@@ -409,24 +440,42 @@ class StateMachine:
             # Dedão abriu → Soltar clique
             dispatch_count = 1 if self.is_right_click else self.click_count
             post_mouse_event(LEFT_MOUSE_UP, self.cursor_pos, click_count=dispatch_count, is_right_click=self.is_right_click)
+            self._mouse_is_down = False
 
             self.last_click_release = now
+            self.state = AppState.SOLTAR
+            self.thumb_open_frames = 0
+            self.thumb_close_frames = 0
 
             if not self.drag_active:
-                self._reset_to_navegacao()
-                print("☝️ [ESTADO 0] Gatilho solto. Retornando à navegação.")
+                print("🛑 [ESTADO 3] Clique solto. Aguardando dedão fechar...")
             else:
-                self.state = AppState.SOLTAR
-                self.thumb_open_frames = 0
-                self.thumb_close_frames = 0
-                print("🛑 [ESTADO 3] Drag finalizado.")
+                print("🛑 [ESTADO 3] Drag finalizado. Aguardando dedão fechar...")
 
     # =====================================================================
     # ESTADO 3: SOLTAR — Transição limpa
     # =====================================================================
 
-    def _estado_soltar(self):
-        self._reset_to_navegacao()
+    def _estado_soltar(self, thumb_close_ok: bool, now: float):
+        # Em SOLTAR, o dedão está ABERTO (você acabou de soltar o gatilho).
+        # Mantém o cursor travado (congelado) onde estava
+        post_mouse_event(MOUSE_MOVED, self.frozen_pos)
+
+        if thumb_close_ok:
+            intervalo = now - self.last_click_release
+            if intervalo <= config.DOUBLE_CLICK_WINDOW and not self.drag_active:
+                # Fechou rápido! É um duplo clique.
+                self.state = AppState.CLIQUE_ARRASTE
+                self._iniciar_clique(now, self.anchor_hand_pos)
+            else:
+                # Fechou após o tempo de duplo clique (ou foi drag). Retorna para NAVEGACAO.
+                self._reset_to_navegacao()
+                print("☝️ [ESTADO 0] Gatilho recolhido. Retornando à navegação.")
+        else:
+            # Se mantiver o dedão aberto (solto) por muito tempo, cancela e volta
+            if now - self.last_click_release > config.TRAVA_MIRA_TIMEOUT:
+                self._reset_to_navegacao()
+                print("⏰ [TIMEOUT] Soltar expirou. Retornando à navegação.")
 
     # =====================================================================
     # ESTADO 4: SCROLL — Mão espalmada (5 dedos, joystick vertical)
@@ -434,6 +483,7 @@ class StateMachine:
 
     def _estado_scroll(self, hand: HandData, now: float, should_exit: bool):
         if should_exit:
+            self._scroll_accumulator = 0.0
             self._reset_to_navegacao()
             print("↕️ [SCROLL] Saindo do modo scroll")
             return
@@ -447,5 +497,11 @@ class StateMachine:
             speed = magnitude * magnitude * config.SCROLL_ACCELERATION
             scroll_speed = -speed if delta_y > 0 else speed
 
-            post_scroll_event(scroll_speed)
-            self.last_scroll_time = now
+            # Acumular sub-pixel para não perder movimentos pequenos
+            self._scroll_accumulator += scroll_speed
+            int_scroll = int(self._scroll_accumulator)
+
+            if int_scroll != 0:
+                post_scroll_event(float(int_scroll))
+                self._scroll_accumulator -= int_scroll
+                self.last_scroll_time = now
