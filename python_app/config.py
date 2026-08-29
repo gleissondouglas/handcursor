@@ -80,17 +80,7 @@ SCROLL_PINKY_FACTOR = 1.1
 SCROLL_THUMB_FACTOR = 1.0
 
 # -------------------------------------------------------------------------
-# HISTÓRICO DE POSIÇÕES (para média se necessário)
-# -------------------------------------------------------------------------
-MAX_POSITION_HISTORY = 10
-
-# -------------------------------------------------------------------------
 # CÂMERA — RECUPERAÇÃO DE FALHA
 # -------------------------------------------------------------------------
 CAMERA_RETRY_DELAY = 0.5      # Segundos entre tentativas de releitura
 CAMERA_MAX_RETRIES = 10       # Tentativas antes de encerrar
-
-# -------------------------------------------------------------------------
-# SCROLL — ACUMULADOR SUB-PIXEL
-# -------------------------------------------------------------------------
-SCROLL_MIN_SPEED = 1.0        # Velocidade mínima para acumular scroll

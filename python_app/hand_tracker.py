@@ -13,8 +13,6 @@ from dataclasses import dataclass
 _HL = mp.solutions.hands.HandLandmark
 
 
-
-
 @dataclass
 class HandData:
     """Dados extraídos da mão — coordenadas normalizadas [0.0, 1.0]."""
@@ -46,8 +44,6 @@ class HandTracker:
             min_detection_confidence=min_detection,
             min_tracking_confidence=min_tracking,
         )
-        self.mp_draw = mp.solutions.drawing_utils
-        self.mp_hands = mp.solutions.hands
 
     def process(self, frame_rgb: np.ndarray) -> HandData | None:
         """

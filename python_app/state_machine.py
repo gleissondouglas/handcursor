@@ -182,6 +182,7 @@ class StateMachine:
             print("🔥 [CLIQUE] Duplo clique")
         elif intervalo <= config.BOUNCE_FILTER_TIME and self.last_click_release > 0:
             print("⚠️ [BOUNCE] Tremor ignorado")
+            return
         else:
             self.click_count = 1
             print("👆 [CLIQUE] Clique simples")
