@@ -2,74 +2,118 @@
   <img src="assets/icon.jpg" width="150" height="150" style="border-radius: 20px;">
 </p>
 
-<h1 align="center">HandCursor App 🖐️💻</h1>
+<h1 align="center">HandCursor 🖐️</h1>
 
 <p align="center">
-  <b>Controle o seu Mac usando apenas gestos das mãos, como se fosse magia.</b>
+  <b>Controle o cursor do seu Mac usando apenas gestos das mãos.</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/MediaPipe-v0.10.14-00A650?style=for-the-badge" alt="MediaPipe">
   <img src="https://img.shields.io/badge/macOS-12.0+-black?style=for-the-badge&logo=apple" alt="macOS">
+  <img src="https://img.shields.io/badge/Licença-MIT-blue?style=for-the-badge" alt="MIT">
 </p>
 
 ---
 
-O **HandCursor App** é um aplicativo que permite controlar o cursor do sistema utilizando visão computacional baseada em gestos da mão. Recentemente refatorado para **Python 3** usando **MediaPipe** da Google, o aplicativo agora entende a mão em 3D, eliminando problemas de oclusão do antigo Vision Framework da Apple.
+O **HandCursor** transforma a sua webcam em um dispositivo de controle: usando **visão computacional 3D** (Google MediaPipe), o aplicativo rastreia 21 pontos da sua mão em tempo real e converte gestos naturais em ações do sistema operacional — mover o cursor, clicar, arrastar e rolar.
 
-## ✨ Funcionalidades e Gestos
+## ✨ Gestos
 
-A nova **Arquitetura Gatilho com Dedão** foi projetada ergonomicamente baseada na limitação dos tendões, permitindo um clique extremamente preciso onde o cursor não "pula" na hora de clicar.
+A **Arquitetura Gatilho com Dedão** foi projetada ergonomicamente com base na limitação natural dos tendões, garantindo um clique preciso onde o cursor não "pula".
 
-- ☝️ **Navegação Livre**: Aponte o dedo indicador para cima (com o dedão recolhido). O cursor acompanha o seu dedo de forma suave, estabilizado por filtros *OneEuro*.
--  **Trava de Mira (L)**: Abra o dedão para o lado, formando um "L". O cursor irá **congelar no pixel exato** em que você está mirando.
--  **Clique / Arraste (Gatilho)**: Com o cursor travado (mão em "L"), puxe o dedão de volta para perto da mão (puxando o gatilho) para **clicar**. Mantenha o gatilho puxado e mova o pulso para **arrastar**.
-- 🖱️ **Clique Direito**: Puxe o gatilho e segure por 1.2 segundos.
-- 🖐️ **Scroll (Mão Espalmada)**: Abra a mão completamente (5 dedos esticados) e mova para cima ou para baixo para fazer rolagem (scroll) de forma acelerada.
+| Gesto | Ação | Como fazer |
+|:---:|---|---|
+| ☝️ | **Navegação** | Aponte o indicador para cima (dedão recolhido). O cursor acompanha o dedo, estabilizado por filtros *OneEuro*. |
+| 🤙 | **Trava de Mira** | Abra o dedão formando um "L". O cursor **congela no pixel exato** em que está mirando. |
+| 🔫 | **Clique** | Com o cursor travado, feche o dedão de volta (puxe o gatilho). |
+| 🔄 | **Arrastar** | Puxe o gatilho e mova o pulso. O arraste acompanha o movimento com suavização. |
+| 🖱️ | **Clique Direito** | Puxe o gatilho e segure por **1.2 segundos**. |
+| 🖐️ | **Scroll** | Abra a mão completamente (5 dedos esticados) e mova para cima ou para baixo. |
 
 ## 📥 Instalação
 
-O projeto atualmente roda direto via script Python no Terminal.
+### Pré-requisitos
 
-1. Clone o repositório:
+- macOS 12.0+ (Monterey ou superior)
+- Python 3.9+
+- Webcam integrada ou externa
+
+### Setup
+
 ```bash
+# 1. Clone o repositório
 git clone https://github.com/gleissondouglas/handcursor.git
 cd handcursor/python_app
-```
 
-2. Instale as dependências:
-```bash
+# 2. Instale as dependências
 pip3 install -r requirements.txt
 ```
 
-3. Execute o aplicativo:
+### Permissões do macOS
+
+O HandCursor precisa de duas permissões para funcionar:
+
+| Permissão | Por quê | Onde ativar |
+|---|---|---|
+| 📷 **Câmera** | Capturar a imagem da mão | Solicitada automaticamente na primeira execução |
+| ♿ **Acessibilidade** | Injetar eventos de mouse no sistema | *Ajustes do Sistema → Privacidade e Segurança → Acessibilidade* |
+
+> O aplicativo verifica automaticamente se as permissões estão concedidas e exibe um aviso no terminal caso estejam faltando.
+
+## 🚀 Uso
+
 ```bash
-# Modo normal, em background (ideal para o dia a dia):
+# Modo padrão (sem janela visual)
 python3 main.py
 
-# Modo debug, mostra uma janela com a câmera e os esqueletos da mão em tempo real:
+# Modo debug (exibe câmera com landmarks e estado em tempo real)
 python3 main.py --debug
+
+# Desativar espelhamento da câmera
+python3 main.py --no-mirror
+
+# Usar uma câmera específica (ex: webcam externa no índice 1)
+python3 main.py --camera 1
+
+# Combinando opções
+python3 main.py --debug --camera 1 --no-mirror
 ```
 
-*(Observação: Na primeira vez que rodar, o macOS ou o Terminal podem solicitar permissões de **Acessibilidade** e **Câmera**. Elas são essenciais para o aplicativo mover o mouse e enxergar a sua mão).*
+Para encerrar: `Ctrl+C` no terminal ou `Q` na janela de debug.
 
-## 🛠 Arquitetura (Python / MediaPipe)
+## 🏗️ Arquitetura
 
-O motor antigo em Swift (Vision Framework) ficava limitado a 2D e sofria oclusão quando o dedo dobrava para a câmera. O novo motor `python_app` foi desenhado com:
+```
+python_app/
+├── main.py              # Loop principal, CLI e ciclo de vida
+├── hand_tracker.py      # Wrapper do MediaPipe Hands (21 landmarks 3D)
+├── state_machine.py     # Máquina de estados com debouncing e hysteresis
+├── filters.py           # OneEuroFilter (adaptativo) + LowPassFilter
+├── mouse_injector.py    # Injeção de CGEvent via Quartz (PyObjC)
+└── config.py            # Thresholds, timings e configurações centralizadas
+```
 
-- `hand_tracker.py`: Wrapper do `mediapipe` para rastreamento robusto em 3D usando o modelo de 21 landmarks.
-- `state_machine.py`: Máquina de estados complexa com debouncing e hysteresis que converte poses em ações do macOS.
-- `filters.py`: Filtros matemáticos (`LowPassFilter` e `OneEuroFilter`) para eliminar tremulação natural da mão e estabilizar o cursor.
-- `mouse_injector.py`: Injeção de eventos nativos do macOS (clique, drag, scroll) através do PyObjC e Quartz (`kCGHIDEventTap`).
-- `config.py`: Arquivo centralizado com todos os *thresholds*, timings e configurações do sistema.
+| Módulo | Responsabilidade |
+|---|---|
+| **`hand_tracker`** | Recebe frames RGB, executa o modelo MediaPipe e retorna um `HandData` com coordenadas normalizadas dos landmarks. |
+| **`state_machine`** | Converte poses da mão em ações do macOS através de 5 estados: Navegação → Trava de Mira → Clique/Arraste → Soltar → Scroll. Usa hysteresis para evitar oscilação e debouncing para confirmar gestos. |
+| **`filters`** | `OneEuroFilter` adapta a suavização à velocidade do movimento: estável quando parado, responsivo quando em movimento rápido. |
+| **`mouse_injector`** | Injeta eventos nativos (`CGEventCreateMouseEvent`, `CGEventCreateScrollWheelEvent`) no macOS via `kCGHIDEventTap`. Feedback sonoro nativo via `NSSound`. |
+| **`config`** | Ponto único de ajuste de todos os parâmetros: thresholds do gatilho, tempos de debounce, fatores de scroll, alphas dos filtros. |
 
 ## 🤝 Contribuições
 
-Sinta-se à vontade para abrir _Issues_ e _Pull Requests_. Ideias para o futuro:
-- Empacotar o script Python de volta em um app nativo para macOS `.app` (ex: PyInstaller).
-- Otimizações para detecção de duas mãos simultâneas.
+Contribuições são bem-vindas! Abra uma _Issue_ ou _Pull Request_.
+
+**Roadmap:**
+- [ ] Empacotar como app nativo `.app` (PyInstaller / py2app)
+- [ ] Menu Bar com controles de start/pause/sensibilidade
+- [ ] Suporte a múltiplos monitores
+- [ ] Modo para canhotos
+- [ ] Detecção de duas mãos simultâneas
 
 ## 📄 Licença
 
-Distribuído sob a licença MIT.
+Distribuído sob a licença [MIT](LICENSE).
