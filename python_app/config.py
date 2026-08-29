@@ -42,7 +42,7 @@ THUMB_CLOSE_MIN_FRAMES = 2    # ~67ms a 30fps (gatilho puxado — responsivo)
 # -------------------------------------------------------------------------
 # TEMPORIZAÇÃO
 # -------------------------------------------------------------------------
-TRAVA_MIRA_TIMEOUT = 8.0      # Segundos — volta à navegação se ficar travado
+TRAVA_MIRA_TIMEOUT = 1.5      # Segundos — volta à navegação se ficar travado (reduzido para cancelar rápido)
 RIGHT_CLICK_HOLD_TIME = 1.2   # Segundos — hold para clique direito
 DOUBLE_CLICK_WINDOW = 0.5     # Segundos — janela para duplo clique
 BOUNCE_FILTER_TIME = 0.15     # Segundos — ignora cliques muito rápidos (tremor)
@@ -58,7 +58,7 @@ DRAG_FILTER_ALPHA = 0.18         # Suavização do filtro de arraste (0 = lento,
 # -------------------------------------------------------------------------
 PRE_FILTER_ALPHA = 0.95      # Alpha do LowPassFilter pré-processamento
 EURO_MIN_CUTOFF = 1.80        # OneEuroFilter: estabilidade quando parado
-EURO_BETA = 0.0               # OneEuroFilter: responsividade quando em movimento
+EURO_BETA = 0.007             # OneEuroFilter: responsividade quando em movimento (> 0 ativa filtro adaptativo)
 EURO_D_CUTOFF = 1.0           # OneEuroFilter: cutoff da derivada
 
 # -------------------------------------------------------------------------
@@ -83,3 +83,14 @@ SCROLL_THUMB_FACTOR = 1.0
 # HISTÓRICO DE POSIÇÕES (para média se necessário)
 # -------------------------------------------------------------------------
 MAX_POSITION_HISTORY = 10
+
+# -------------------------------------------------------------------------
+# CÂMERA — RECUPERAÇÃO DE FALHA
+# -------------------------------------------------------------------------
+CAMERA_RETRY_DELAY = 0.5      # Segundos entre tentativas de releitura
+CAMERA_MAX_RETRIES = 10       # Tentativas antes de encerrar
+
+# -------------------------------------------------------------------------
+# SCROLL — ACUMULADOR SUB-PIXEL
+# -------------------------------------------------------------------------
+SCROLL_MIN_SPEED = 1.0        # Velocidade mínima para acumular scroll

@@ -12,17 +12,7 @@ from dataclasses import dataclass
 # Atalhos para landmarks do MediaPipe
 _HL = mp.solutions.hands.HandLandmark
 
-# Mapeamento dos landmarks que usamos (nomes → índices MediaPipe)
-LANDMARKS = {
-    "index_tip": _HL.INDEX_FINGER_TIP,       # 8
-    "index_mcp": _HL.INDEX_FINGER_MCP,       # 5
-    "thumb_tip": _HL.THUMB_TIP,              # 4
-    "wrist": _HL.WRIST,                      # 0
-    "pinky_mcp": _HL.PINKY_MCP,              # 17
-    "middle_tip": _HL.MIDDLE_FINGER_TIP,     # 12
-    "ring_tip": _HL.RING_FINGER_TIP,         # 16
-    "pinky_tip": _HL.PINKY_TIP,              # 20
-}
+
 
 
 @dataclass
@@ -102,13 +92,6 @@ class HandTracker:
             pinky_tip=(pinky_tip.x, pinky_tip.y) if pinky_tip else None,
         )
 
-    def draw_landmarks(self, frame, results=None):
-        """Desenha os landmarks na imagem (para debug visual)."""
-        if results and results.multi_hand_landmarks:
-            for hand_lm in results.multi_hand_landmarks:
-                self.mp_draw.draw_landmarks(
-                    frame, hand_lm, self.mp_hands.HAND_CONNECTIONS
-                )
 
     def close(self):
         """Libera os recursos do MediaPipe."""
