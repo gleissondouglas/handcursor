@@ -29,14 +29,14 @@ ACTION_MAP = {
 # -------------------------------------------------------------------------
 # PINÇA (PINCH) — Thresholds 3D com Hysteresis
 # -------------------------------------------------------------------------
-# Distância normalizada (distância ponta a ponta / escala da mão)
-PINCH_ENTER = 0.20   # Distância abaixo disso ativa a pinça
-PINCH_EXIT = 0.25    # Distância acima disso desativa a pinça
+# Aumentei significativamente a tolerância. Não precisa "esmagar" os dedos.
+PINCH_ENTER = 0.35   # (Era 0.20) Basta os dedos chegarem perto para clicar
+PINCH_EXIT = 0.45    # (Era 0.25) Você pode afrouxar bastante sem soltar o clique (excelente para arraste)
 
 # -------------------------------------------------------------------------
 # DEBOUNCING — Frames consecutivos mínimos para confirmar gesto
 # -------------------------------------------------------------------------
-GESTURE_MIN_FRAMES = 2        # Rápido o suficiente para ser responsivo, lento para não tremer
+GESTURE_MIN_FRAMES = 1        # (Era 2) Resposta instantânea ao toque, sem atraso
 
 # -------------------------------------------------------------------------
 # TEMPORIZAÇÃO
@@ -44,12 +44,12 @@ GESTURE_MIN_FRAMES = 2        # Rápido o suficiente para ser responsivo, lento 
 RIGHT_CLICK_HOLD_TIME = 1.2   # Segundos — hold para clique direito
 DOUBLE_CLICK_WINDOW = 0.5     # Segundos — janela para duplo clique
 BOUNCE_FILTER_TIME = 0.15     # Segundos — ignora cliques muito rápidos (tremor)
-MICRO_LOCK_DURATION = 0.10    # Segundos — congela o cursor ao clicar para evitar deslizes
+MICRO_LOCK_DURATION = 0.05    # (Era 0.10) Reduzido para o cursor voltar a mover mais rápido no arraste
 
 # -------------------------------------------------------------------------
 # DRAG (ARRASTE)
 # -------------------------------------------------------------------------
-DRAG_DISTANCE_THRESHOLD = 0.015  # Distância normalizada mínima do wrist para ativar drag
+DRAG_DISTANCE_THRESHOLD = 0.005  # (Era 0.015) Ativa o arraste quase que instantaneamente ao mover a mão
 DRAG_FILTER_ALPHA = 0.18         # Suavização do filtro de arraste (0 = lento, 1 = direto)
 
 # -------------------------------------------------------------------------

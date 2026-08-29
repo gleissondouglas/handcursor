@@ -122,6 +122,25 @@ class StateMachine:
         action_scroll = config.ACTION_MAP.get("SCROLL")
 
         # Prioridade de Ações: Scroll > Clique Direito > Clique Esquerdo > Navegação
+
+        # [SAFETY] Controle unificado de liberação de clique
+        # Se estávamos segurando um botão, mas o gesto mudou (seja para RELAXED ou para outro gesto)
+        if self._mouse_is_down:
+            is_holding_left_but_changed = (self.current_click_type == "LEFT" and gesto_atual.value != action_left)
+            is_holding_right_but_changed = (self.current_click_type == "RIGHT" and gesto_atual.value != action_right)
+            
+            if is_holding_left_but_changed or is_holding_right_but_changed:
+                event_up = LEFT_MOUSE_UP if self.current_click_type == "LEFT" else RIGHT_MOUSE_UP
+                post_mouse_event(event_up, self.cursor_pos, click_count=self.click_count, is_right_click=(self.current_click_type == "RIGHT"))
+                self._mouse_is_down = False
+                self.drag_active = False
+                self.last_click_release = now
+                self.current_click_type = None
+                
+                if gesto_atual.value == "RELAXED":
+                    print("🛑 [SOLTAR] Clique finalizado.")
+                else:
+                    print("🛑 [INTERRUPÇÃO] Gesto trocado abruptamente, clique solto.")
         
         # --- SCROLL ---
         if gesto_atual.value == action_scroll:
@@ -164,7 +183,6 @@ class StateMachine:
                 print("🖱️ [CLIQUE DIREITO] Pressionado")
             
             if now < self.lock_until:
-                # Congelado para absorver o tremor do clique
                 pass
             else:
                 self._update_cursor(raw_mapped, now)
@@ -173,7 +191,6 @@ class StateMachine:
         # --- CLIQUE ESQUERDO / ARRASTE ---
         if gesto_atual.value == action_left:
             if not self._mouse_is_down:
-                # Inicia o clique
                 interval = now - self.last_click_release
                 if config.BOUNCE_FILTER_TIME < interval <= config.DOUBLE_CLICK_WINDOW and self.last_click_release > 0:
                     self.click_count = 2
@@ -191,23 +208,15 @@ class StateMachine:
                 self.drag_active = False
                 self.anchor_hand_pos = raw_mapped
                 self.cursor_anchor = self.cursor_pos
-                
-                # Micro-lock evita que o cursor ande sozinho quando o dedo e o polegar se chocam
                 self.lock_until = now + config.MICRO_LOCK_DURATION
                 
                 post_mouse_event(LEFT_MOUSE_DOWN, self.cursor_pos, click_count=self.click_count)
-            
             else:
-                # Já está pressionado - Trata arraste
                 if now >= self.lock_until:
-                    # Inicia drag se mover mais que o threshold
                     if not self.drag_active:
                         dx = raw_mapped[0] - self.anchor_hand_pos[0]
                         dy = raw_mapped[1] - self.anchor_hand_pos[1]
                         dist = math.sqrt(dx*dx + dy*dy)
-                        
-                        # Converter drag threshold de normalizado para pixels de tela
-                        # Usando uma estimativa simples baseada na largura da tela
                         threshold_px = self.screen_w * config.DRAG_DISTANCE_THRESHOLD
                         
                         if dist > threshold_px:
@@ -232,16 +241,7 @@ class StateMachine:
             return
 
         # --- NAVEGAÇÃO LIVRE (RELAXED) ---
-        if self._mouse_is_down:
-            # Soltou o clique
-            event_up = LEFT_MOUSE_UP if self.current_click_type == "LEFT" else RIGHT_MOUSE_UP
-            post_mouse_event(event_up, self.cursor_pos, click_count=self.click_count, is_right_click=(self.current_click_type == "RIGHT"))
-            self._mouse_is_down = False
-            self.drag_active = False
-            self.last_click_release = now
-            self.current_click_type = None
-            print("🛑 [SOLTAR] Clique finalizado")
-
+        # Apenas atualiza o cursor, a liberação de cliques já foi tratada no topo.
         self._update_cursor(raw_mapped, now)
 
     def _update_cursor(self, raw_mapped: tuple[float, float], now: float):
