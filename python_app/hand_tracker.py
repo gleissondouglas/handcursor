@@ -15,15 +15,15 @@ _HL = mp.solutions.hands.HandLandmark
 
 @dataclass
 class HandData:
-    """Dados extraídos da mão — coordenadas normalizadas [0.0, 1.0]."""
-    index_tip: tuple[float, float]
-    index_mcp: tuple[float, float]
-    thumb_tip: tuple[float, float]
-    wrist: tuple[float, float]
-    pinky_mcp: tuple[float, float]
-    middle_tip: tuple[float, float] | None = None
-    ring_tip: tuple[float, float] | None = None
-    pinky_tip: tuple[float, float] | None = None
+    """Dados extraídos da mão — coordenadas normalizadas [0.0, 1.0] em x, y e profundidade em z."""
+    index_tip: tuple[float, float, float]
+    index_mcp: tuple[float, float, float]
+    thumb_tip: tuple[float, float, float]
+    wrist: tuple[float, float, float]
+    pinky_mcp: tuple[float, float, float]
+    middle_tip: tuple[float, float, float] | None = None
+    ring_tip: tuple[float, float, float] | None = None
+    pinky_tip: tuple[float, float, float] | None = None
 
 
 class HandTracker:
@@ -78,14 +78,14 @@ class HandTracker:
         pinky_tip = landmarks.landmark[_HL.PINKY_TIP]
 
         return HandData(
-            index_tip=(idx_tip.x, idx_tip.y),
-            index_mcp=(idx_mcp.x, idx_mcp.y),
-            thumb_tip=(thumb_tip.x, thumb_tip.y),
-            wrist=(wrist.x, wrist.y),
-            pinky_mcp=(pinky_mcp.x, pinky_mcp.y),
-            middle_tip=(mid_tip.x, mid_tip.y) if mid_tip else None,
-            ring_tip=(ring_tip.x, ring_tip.y) if ring_tip else None,
-            pinky_tip=(pinky_tip.x, pinky_tip.y) if pinky_tip else None,
+            index_tip=(idx_tip.x, idx_tip.y, idx_tip.z),
+            index_mcp=(idx_mcp.x, idx_mcp.y, idx_mcp.z),
+            thumb_tip=(thumb_tip.x, thumb_tip.y, thumb_tip.z),
+            wrist=(wrist.x, wrist.y, wrist.z),
+            pinky_mcp=(pinky_mcp.x, pinky_mcp.y, pinky_mcp.z),
+            middle_tip=(mid_tip.x, mid_tip.y, mid_tip.z) if mid_tip else None,
+            ring_tip=(ring_tip.x, ring_tip.y, ring_tip.z) if ring_tip else None,
+            pinky_tip=(pinky_tip.x, pinky_tip.y, pinky_tip.z) if pinky_tip else None,
         )
 
 

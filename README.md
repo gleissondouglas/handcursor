@@ -21,16 +21,17 @@ O **HandCursor** transforma a sua webcam em um dispositivo de controle: usando *
 
 ## ✨ Gestos
 
-A **Arquitetura Gatilho com Dedão** foi projetada ergonomicamente com base na limitação natural dos tendões, garantindo um clique preciso onde o cursor não "pula".
+A **Arquitetura Pinça (Vision Pro)** foi projetada para ser natural e fluida. O cursor rastreia o "centro da pinça", garantindo estabilidade e precisão.
 
 | Gesto | Ação | Como fazer |
 |:---:|---|---|
-| ☝️ | **Navegação** | Aponte o indicador para cima (dedão recolhido). O cursor acompanha o dedo, estabilizado por filtros *OneEuro*. |
-| 🤙 | **Trava de Mira** | Abra o dedão formando um "L". O cursor **congela no pixel exato** em que está mirando. |
-| 🔫 | **Clique** | Com o cursor travado, feche o dedão de volta (puxe o gatilho). |
-| 🔄 | **Arrastar** | Puxe o gatilho e mova o pulso. O arraste acompanha o movimento com suavização. |
-| 🖱️ | **Clique Direito** | Puxe o gatilho e segure por **1.2 segundos**. |
-| 🖐️ | **Scroll** | Abra a mão completamente (5 dedos esticados) e mova para cima ou para baixo. |
+| 🖐️ | **Navegação** | Mão relaxada (apontando ou neutra). O cursor segue a mão, estabilizado por filtros *OneEuro*. |
+| 🤏 | **Clique (Pinch)** | Toque a ponta do **Indicador** com o **Polegar**. Um micro-congelamento de 100ms absorve o tremor do clique. |
+| 🔄 | **Arrastar** | Feche a pinça (Indicador + Polegar) e continue movendo a mão. |
+| ✌️ | **Clique Direito** | Toque a ponta do dedo **Médio** com o **Polegar**. |
+| ✋ | **Scroll** | Abra a mão completamente (5 dedos esticados) e mova para cima ou para baixo. |
+
+> **Configurável:** Você pode alterar o que cada gesto faz editando o `ACTION_MAP` no `config.py`.
 
 ## 📥 Instalação
 

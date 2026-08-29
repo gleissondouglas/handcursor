@@ -176,15 +176,18 @@ def main():
                     cv2.circle(frame, (px, py), 6, color, -1)
                     cv2.putText(frame, name, (px + 8, py - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
-                # Linha dedão → indexMCP (a métrica do gatilho)
+                # Linha indicador → polegar (a métrica do PINCH)
                 p1 = (int(hand.thumb_tip[0] * w_frame), int(hand.thumb_tip[1] * h_frame))
-                p2 = (int(hand.index_mcp[0] * w_frame), int(hand.index_mcp[1] * h_frame))
-                line_color = (0, 0, 255) if machine.is_thumb_open else (100, 100, 100)
+                p2 = (int(hand.index_tip[0] * w_frame), int(hand.index_tip[1] * h_frame))
+                
+                # Cor verde quando pinçado, vermelho quando aberto
+                is_pinched = machine.recognizer.current_gesture.name in ("PINCH_INDEX", "PINCH_MIDDLE")
+                line_color = (0, 255, 0) if is_pinched else (0, 0, 255)
                 cv2.line(frame, p1, p2, line_color, 2)
 
             # Info overlay
-            state_name = machine.state.name
-            cv2.putText(frame, f"Estado: {state_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            gesture_name = machine.recognizer.current_gesture.value if hand else "LOST"
+            cv2.putText(frame, f"Gesto: {gesture_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(frame, f"FPS: {fps_display:.0f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
             cv2.imshow("HandCursor Debug", frame)

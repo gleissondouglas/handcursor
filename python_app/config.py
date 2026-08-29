@@ -17,35 +17,34 @@ CAMERA_HEIGHT = 720
 SCREEN_MARGIN = 0.15
 
 # -------------------------------------------------------------------------
-# GATILHO COM DEDÃO — Thresholds com Hysteresis
-#
-# thumbTriggerRatio = distance(thumbTip, indexMCP) / handScale
-# Com a mão em pé, o handScale (pulso-MCP) é grande.
-#   - Baixo (~0.12-0.18): Dedão RECOLHIDO → Navegação / Gatilho puxado
-#   - Alto  (~0.28-0.35+): Dedão ABERTO em "L" → Trava de Mira
+# AÇÕES E GESTOS (Mapeamento Configurável)
 # -------------------------------------------------------------------------
+# Gestos disponíveis (em gestures.py): PINCH_INDEX, PINCH_MIDDLE, OPEN_HAND, RELAXED
+ACTION_MAP = {
+    "LEFT_CLICK_DRAG": "PINCH_INDEX",
+    "RIGHT_CLICK": "PINCH_MIDDLE",
+    "SCROLL": "OPEN_HAND",
+}
 
-# Transição Navegação → Trava de Mira (dedão abrindo em "L")
-THUMB_OPEN_ENTER = 0.26   # Ratio acima disso = dedão abriu → TRAVAR
-THUMB_OPEN_EXIT = 0.22    # Ratio abaixo disso = saiu da trava
-
-# Detecção do Gatilho (dedão fechando de volta)
-THUMB_CLOSE_ENTER = 0.20  # Ratio abaixo disso = GATILHO (clique!)
-THUMB_CLOSE_EXIT = 0.23   # Ratio acima disso = soltou o gatilho
+# -------------------------------------------------------------------------
+# PINÇA (PINCH) — Thresholds 3D com Hysteresis
+# -------------------------------------------------------------------------
+# Distância normalizada (distância ponta a ponta / escala da mão)
+PINCH_ENTER = 0.20   # Distância abaixo disso ativa a pinça
+PINCH_EXIT = 0.25    # Distância acima disso desativa a pinça
 
 # -------------------------------------------------------------------------
 # DEBOUNCING — Frames consecutivos mínimos para confirmar gesto
 # -------------------------------------------------------------------------
-THUMB_OPEN_MIN_FRAMES = 4     # ~133ms a 30fps (dedão abriu em L)
-THUMB_CLOSE_MIN_FRAMES = 2    # ~67ms a 30fps (gatilho puxado — responsivo)
+GESTURE_MIN_FRAMES = 2        # Rápido o suficiente para ser responsivo, lento para não tremer
 
 # -------------------------------------------------------------------------
 # TEMPORIZAÇÃO
 # -------------------------------------------------------------------------
-TRAVA_MIRA_TIMEOUT = 1.5      # Segundos — volta à navegação se ficar travado (reduzido para cancelar rápido)
 RIGHT_CLICK_HOLD_TIME = 1.2   # Segundos — hold para clique direito
 DOUBLE_CLICK_WINDOW = 0.5     # Segundos — janela para duplo clique
 BOUNCE_FILTER_TIME = 0.15     # Segundos — ignora cliques muito rápidos (tremor)
+MICRO_LOCK_DURATION = 0.10    # Segundos — congela o cursor ao clicar para evitar deslizes
 
 # -------------------------------------------------------------------------
 # DRAG (ARRASTE)
