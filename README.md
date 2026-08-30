@@ -19,7 +19,7 @@
 
 O **HandCursor** transforma a sua webcam em um dispositivo de controle: usando **visão computacional 3D** (Google MediaPipe), o aplicativo rastreia 21 pontos da sua mão em tempo real e converte gestos naturais em ações do sistema operacional — mover o cursor, clicar, arrastar e rolar.
 
-## ✨ Gestos
+## Gestos
 
 A **Arquitetura Pinça (Vision Pro)** foi projetada para ser natural e fluida. O cursor rastreia o "centro da pinça", garantindo estabilidade e precisão.
 
@@ -33,7 +33,7 @@ A **Arquitetura Pinça (Vision Pro)** foi projetada para ser natural e fluida. O
 
 > **Configurável:** Você pode alterar o que cada gesto faz editando o `ACTION_MAP` no `config.py`.
 
-## 📥 Instalação
+## Instalação
 
 ### Pré-requisitos
 
