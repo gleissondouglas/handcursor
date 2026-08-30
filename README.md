@@ -63,7 +63,7 @@ O HandCursor precisa de duas permissões para funcionar:
 
 > O aplicativo verifica automaticamente se as permissões estão concedidas e exibe um aviso no terminal caso estejam faltando.
 
-## 🚀 Uso
+## Uso
 
 ```bash
 # Modo padrão (sem janela visual)
@@ -84,7 +84,7 @@ python3 main.py --debug --camera 1 --no-mirror
 
 Para encerrar: `Ctrl+C` no terminal ou `Q` na janela de debug.
 
-## 🏗️ Arquitetura
+## Arquitetura
 
 ```
 python_app/
@@ -104,7 +104,7 @@ python_app/
 | **`mouse_injector`** | Injeta eventos nativos (`CGEventCreateMouseEvent`, `CGEventCreateScrollWheelEvent`) no macOS via `kCGHIDEventTap`. Feedback sonoro nativo via `NSSound`. |
 | **`config`** | Ponto único de ajuste de todos os parâmetros: thresholds do gatilho, tempos de debounce, fatores de scroll, alphas dos filtros. |
 
-## 🤝 Contribuições
+## Contribuições
 
 Contribuições são bem-vindas! Abra uma _Issue_ ou _Pull Request_.
 
@@ -115,6 +115,6 @@ Contribuições são bem-vindas! Abra uma _Issue_ ou _Pull Request_.
 - [ ] Modo para canhotos
 - [ ] Detecção de duas mãos simultâneas
 
-## 📄 Licença
+## Licença
 
 Distribuído sob a licença [MIT](LICENSE).
