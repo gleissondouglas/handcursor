@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # =========================================================================
 # HANDCURSOR v5.0 — PYTHON + MEDIAPIPE
-# Mouse virtual controlado pela câmera usando a Arquitetura Gatilho com Dedão.
+# Mouse virtual controlado pela câmera usando a Arquitetura Pinça (Vision Pro).
 #
 # Uso:
 #   python main.py                → Modo normal (sem janela de câmera)
@@ -40,6 +40,27 @@ def _check_accessibility() -> bool:
         return True
 
 
+def _setup_debug_window(window_name: str, width: int, height: int):
+    """
+    Configura a janela de debug para permitir redimensionamento
+    mantendo a proporção de aspecto (aspect ratio) nos eixos X e Y sem distorção.
+    """
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
+
+    try:
+        from AppKit import NSApplication, NSSize
+        app = NSApplication.sharedApplication()
+        for win in app.windows():
+            if win.title() == window_name:
+                aspect = NSSize(width, height)
+                win.setContentAspectRatio_(aspect)
+                win.setAspectRatio_(aspect)
+                break
+    except Exception:
+        pass
+
+
 def parse_args():
     # Define os argumentos de linha de comando que o usuário pode passar ao rodar o script
     parser = argparse.ArgumentParser(description="HandCursor v5.0 — Mouse virtual por câmera")
@@ -59,11 +80,11 @@ def main():
 
     print("\n========================================================")
     print("📍 HANDCURSOR v5.0 — PYTHON + MEDIAPIPE")
-    print("- Navegação: ☝️ indicador (dedão recolhido) = cursor livre")
-    print("- Trava de Mira: 🤙 Mão em L (dedão abre) = cursor congela")
-    print("- Clique: 🔫 Fechar o dedão (puxar o gatilho)")
-    print("- Hold 0.5s + mover = Drag | Hold 1.2s = Clique Direito")
-    print("- Scroll: 🖐️ Mão espalmada (5 dedos abertos)")
+    print("- Navegação: 🖐️ Mão relaxada / neutra = cursor livre")
+    print("- Clique: 🤏 Pinça (Indicador + Polegar)")
+    print("- Arrastar: 🔄 Manter pinça (Indicador + Polegar) e mover")
+    print("- Clique Direito: ✌️ Pinça (Médio + Polegar)")
+    print("- Scroll: ✋ Mão espalmada (5 dedos abertos) para cima/baixo")
     print("========================================================")
     print(f"Câmera: {args.camera} | Debug: {'ON' if args.debug else 'OFF'} | Espelhamento: {'ON' if args.mirror else 'OFF'}")
     print("Pressione Ctrl+C para encerrar.\n")
@@ -110,6 +131,12 @@ def main():
 
     # Camera retry counter (proteção contra desconexão)
     camera_retries = 0
+
+    # Debug window setup
+    DEBUG_WINDOW_NAME = "HandCursor Debug"
+    debug_window_initialized = False
+    if args.debug:
+        _setup_debug_window(DEBUG_WINDOW_NAME, actual_w, actual_h)
 
     print("✅ Rastreamento iniciado!\n")
 
@@ -190,7 +217,11 @@ def main():
             cv2.putText(frame, f"Gesto: {gesture_name}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(frame, f"FPS: {fps_display:.0f}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
-            cv2.imshow("HandCursor Debug", frame)
+            cv2.imshow(DEBUG_WINDOW_NAME, frame)
+            if not debug_window_initialized:
+                _setup_debug_window(DEBUG_WINDOW_NAME, actual_w, actual_h)
+                debug_window_initialized = True
+
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 running = False
 

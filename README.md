@@ -99,10 +99,10 @@ python_app/
 | Módulo | Responsabilidade |
 |---|---|
 | **`hand_tracker`** | Recebe frames RGB, executa o modelo MediaPipe e retorna um `HandData` com coordenadas normalizadas dos landmarks. |
-| **`state_machine`** | Converte poses da mão em ações do macOS através de 5 estados: Navegação → Trava de Mira → Clique/Arraste → Soltar → Scroll. Usa hysteresis para evitar oscilação e debouncing para confirmar gestos. |
+| **`state_machine`** | Converte poses da mão em ações do macOS: Navegação → Pinça Clique/Arraste → Clique Direito → Soltar → Scroll. Usa hysteresis para evitar oscilação e debouncing para confirmar gestos. |
 | **`filters`** | `OneEuroFilter` adapta a suavização à velocidade do movimento: estável quando parado, responsivo quando em movimento rápido. |
 | **`mouse_injector`** | Injeta eventos nativos (`CGEventCreateMouseEvent`, `CGEventCreateScrollWheelEvent`) no macOS via `kCGHIDEventTap`. Feedback sonoro nativo via `NSSound`. |
-| **`config`** | Ponto único de ajuste de todos os parâmetros: thresholds do gatilho, tempos de debounce, fatores de scroll, alphas dos filtros. |
+| **`config`** | Ponto único de ajuste de todos os parâmetros: thresholds de pinça, tempos de debounce, fatores de scroll, alphas dos filtros. |
 
 ## Contribuições
 
