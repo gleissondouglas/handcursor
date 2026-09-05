@@ -2,7 +2,7 @@
   <img src="assets/icon.jpg" width="150" height="150" style="border-radius: 20px;">
 </p>
 
-<h1 align="center">HandCursor 🖐️</h1>
+<h1 align="center">HandCursor </h1>
 
 <p align="center">
   <b>Controle o cursor do seu Mac usando apenas gestos das mãos.</b>
