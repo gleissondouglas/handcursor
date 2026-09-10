@@ -13,7 +13,7 @@ CAMERA_HEIGHT = 480       # (Era 720) Redução significativa de CPU sem perda p
 # -------------------------------------------------------------------------
 # PERFORMANCE
 # -------------------------------------------------------------------------
-MODEL_COMPLEXITY = 0      # Complexidade do modelo MediaPipe (0=Lite ~2ms, 1=Full ~8ms)
+MODEL_COMPLEXITY = 1      # (Revertido para Full) Lite (0) tem Z impreciso, prejudica detecção de pinça 3D
 TARGET_FPS = 30           # FPS alvo do loop principal (limita CPU quando câmera entrega mais)
 
 # -------------------------------------------------------------------------
@@ -42,7 +42,7 @@ PINCH_EXIT = 0.45    # (Era 0.25) Você pode afrouxar bastante sem soltar o cliq
 # -------------------------------------------------------------------------
 # DEBOUNCING — Frames consecutivos mínimos para confirmar gesto
 # -------------------------------------------------------------------------
-GESTURE_MIN_FRAMES = 2        # (Era 1) Mínimo 2 frames para confirmar gesto (evita falsos OPEN_HAND)
+GESTURE_MIN_FRAMES = 1        # (Revertido) Resposta instantânea — scroll já tem HOLD_TIME=0.3s contra falsos positivos
 
 # -------------------------------------------------------------------------
 # TEMPORIZAÇÃO
