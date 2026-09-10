@@ -36,15 +36,17 @@ PINCH_EXIT = 0.45    # (Era 0.25) Você pode afrouxar bastante sem soltar o cliq
 # -------------------------------------------------------------------------
 # DEBOUNCING — Frames consecutivos mínimos para confirmar gesto
 # -------------------------------------------------------------------------
-GESTURE_MIN_FRAMES = 1        # (Era 2) Resposta instantânea ao toque, sem atraso
+GESTURE_MIN_FRAMES = 2        # (Era 1) Mínimo 2 frames para confirmar gesto (evita falsos OPEN_HAND)
 
 # -------------------------------------------------------------------------
 # TEMPORIZAÇÃO
 # -------------------------------------------------------------------------
 RIGHT_CLICK_HOLD_TIME = 1.2   # Segundos — hold para clique direito
-DOUBLE_CLICK_WINDOW = 0.5     # Segundos — janela para duplo clique
-BOUNCE_FILTER_TIME = 0.15     # Segundos — ignora cliques muito rápidos (tremor)
-MICRO_LOCK_DURATION = 0.05    # (Era 0.10) Reduzido para o cursor voltar a mover mais rápido no arraste
+DOUBLE_CLICK_WINDOW = 0.4     # (Era 0.5) Janela mais justa para duplo clique
+BOUNCE_FILTER_TIME = 0.10     # (Era 0.15) Reduzido para não bloquear duplo cliques legítimos
+MICRO_LOCK_DURATION = 0.12    # (Era 0.05) Congela cursor por mais tempo durante o clique para evitar tremor
+TAP_MAX_DURATION = 0.25       # Duração máxima de um "tap" — cursor fica congelado durante esse período
+DOUBLE_CLICK_MAX_DISTANCE = 30.0  # Distância máxima (px) entre dois cliques para contar como duplo
 
 # -------------------------------------------------------------------------
 # DRAG (ARRASTE)
@@ -65,10 +67,13 @@ EURO_D_CUTOFF = 1.0           # OneEuroFilter: cutoff da derivada
 # -------------------------------------------------------------------------
 SCROLL_ENTER_FRAMES = 4          # Frames consecutivos para entrar no scroll
 SCROLL_EXIT_FRAMES = 5           # Frames consecutivos para sair do scroll
-SCROLL_HOLD_TIME = 1.0           # Segundos com postura para ativar scroll
-SCROLL_DEAD_ZONE = 20            # Pixels de zona morta (evita scroll acidental)
-SCROLL_MIN_INTERVAL = 0.04       # Segundos entre eventos de scroll
-SCROLL_ACCELERATION = 0.003      # Fator de aceleração quadrática
+SCROLL_HOLD_TIME = 0.3           # (Era 1.0) Segundos com postura para ativar — resposta muito mais rápida
+SCROLL_DEAD_ZONE = 10            # (Era 20) Pixels de zona morta — menos movimento necessário
+SCROLL_MIN_INTERVAL = 0.016      # (Era 0.04) ~60fps — scroll mais fluido
+SCROLL_ACCELERATION = 0.015      # (Era 0.003) Fator de aceleração quadrática — 5× mais forte
+SCROLL_BASE_SPEED = 0.8          # Velocidade mínima ao passar da dead zone (garante scroll perceptível)
+SCROLL_ANCHOR_DRIFT = 0.03       # Taxa de atualização da âncora (0 = fixa, 1 = segue a mão) — estilo joystick
+SCROLL_FILTER_ALPHA = 0.4        # Suavização do delta Y do scroll (0 = lento, 1 = direto)
 
 # Thresholds de distância dedo→wrist para detectar mão espalmada
 # Aumentados para evitar falso positivo quando os dedos estão recolhidos (mão em pé)
