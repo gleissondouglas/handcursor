@@ -87,6 +87,7 @@ def main():
     print("- Scroll: ✋ Mão espalmada (5 dedos abertos) para cima/baixo")
     print("========================================================")
     print(f"Câmera: {args.camera} | Debug: {'ON' if args.debug else 'OFF'} | Espelhamento: {'ON' if args.mirror else 'OFF'}")
+    print(f"Resolução: {config.CAMERA_WIDTH}x{config.CAMERA_HEIGHT} | Modelo: {'Lite' if config.MODEL_COMPLEXITY == 0 else 'Full'} | FPS alvo: {config.TARGET_FPS}")
     print("Pressione Ctrl+C para encerrar.\n")
 
     # Verificar permissão de Acessibilidade (necessária para CGEvent)
@@ -98,11 +99,11 @@ def main():
 
     # Inicializar câmera usando OpenCV
     cap = cv2.VideoCapture(args.camera)
-    # Configura a resolução para bater com o esperado pelo MediaPipe (idealmente 720p)
+    # Configura a resolução para bater com o esperado pelo MediaPipe
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.CAMERA_WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.CAMERA_HEIGHT)
-    # Tenta fixar a taxa de quadros (FPS) da câmera em 30 quadros por segundo
-    cap.set(cv2.CAP_PROP_FPS, 30)
+    # Tenta fixar a taxa de quadros (FPS) da câmera
+    cap.set(cv2.CAP_PROP_FPS, config.TARGET_FPS)
 
     if not cap.isOpened():
         print("❌ Erro: Não foi possível abrir a câmera.")
@@ -132,6 +133,10 @@ def main():
     # Camera retry counter (proteção contra desconexão)
     camera_retries = 0
 
+    # Frame timing — controle de FPS para limitar consumo de CPU
+    frame_interval = 1.0 / config.TARGET_FPS
+    last_frame_time = 0.0
+
     # Debug window setup
     DEBUG_WINDOW_NAME = "HandCursor Debug"
     debug_window_initialized = False
@@ -141,9 +146,17 @@ def main():
     print("✅ Rastreamento iniciado!\n")
 
     # =========================================================================
-    # LOOP PRINCIPAL (Roda 30 vezes por segundo enquanto o app estiver aberto)
+    # LOOP PRINCIPAL
     # =========================================================================
     while running and cap.isOpened():
+        # Throttle de FPS — evita consumir 100% da CPU quando a câmera entrega mais frames
+        now = time.monotonic()
+        elapsed_since_last = now - last_frame_time
+        if elapsed_since_last < frame_interval:
+            # Dormir pelo tempo restante (libera CPU para outros processos)
+            time.sleep(frame_interval - elapsed_since_last)
+        last_frame_time = time.monotonic()
+
         # Lê um único quadro (foto) da webcam
         ret, frame = cap.read()
         if not ret:
@@ -185,7 +198,7 @@ def main():
             frame_count = 0
             fps_start = time.time()
 
-        # Debug visual
+        # Debug visual — só processa se o modo debug estiver ativo
         if args.debug:
             # Redesenhar landmarks manualmente (mais leve que usar draw_landmarks)
             if hand:

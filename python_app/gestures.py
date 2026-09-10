@@ -9,6 +9,9 @@ class Gesture(Enum):
     OPEN_HAND = "OPEN_HAND"       # Hand completely open
     RELAXED = "RELAXED"           # None of the above (default navigation)
 
+# Cache local para evitar lookup repetido no módulo math
+_sqrt = math.sqrt
+
 class GestureRecognizer:
     def __init__(self):
         # State tracking for hysteresis
@@ -21,17 +24,29 @@ class GestureRecognizer:
         dx = p1[0] - p2[0]
         dy = p1[1] - p2[1]
         dz = p1[2] - p2[2]
-        return math.sqrt(dx * dx + dy * dy + dz * dz)
+        return _sqrt(dx * dx + dy * dy + dz * dz)
+
+    @staticmethod
+    def _distance_3d_sq(p1: tuple[float, float, float], p2: tuple[float, float, float]) -> float:
+        """Distância ao quadrado — evita sqrt quando só precisamos comparar."""
+        dx = p1[0] - p2[0]
+        dy = p1[1] - p2[1]
+        dz = p1[2] - p2[2]
+        return dx * dx + dy * dy + dz * dz
 
     def detect(self, hand: HandData) -> Gesture:
         # Hand Scale: max distance between wrist, index_mcp, and pinky_mcp in 3D
-        edge1 = self._distance_3d(hand.index_mcp, hand.wrist)
-        edge2 = self._distance_3d(hand.index_mcp, hand.pinky_mcp)
-        edge3 = self._distance_3d(hand.wrist, hand.pinky_mcp)
-        hand_scale = max(edge1, edge2, edge3)
+        # Usa distância ao quadrado para o max() — evita 3 sqrt desnecessários
+        edge1_sq = self._distance_3d_sq(hand.index_mcp, hand.wrist)
+        edge2_sq = self._distance_3d_sq(hand.index_mcp, hand.pinky_mcp)
+        edge3_sq = self._distance_3d_sq(hand.wrist, hand.pinky_mcp)
+        hand_scale_sq = max(edge1_sq, edge2_sq, edge3_sq)
 
-        if hand_scale < 0.01:
+        if hand_scale_sq < 0.0001:  # 0.01² — comparação sem sqrt
             return self.current_gesture
+
+        # Apenas 1 sqrt para o hand_scale final (necessário para normalizar distâncias)
+        hand_scale = _sqrt(hand_scale_sq)
 
         # Distances from thumb tip to other fingertips
         dist_index = self._distance_3d(hand.thumb_tip, hand.index_tip) / hand_scale

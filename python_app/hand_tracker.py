@@ -38,9 +38,11 @@ class HandTracker:
     """
 
     def __init__(self, max_hands: int = 1, min_detection: float = 0.7, min_tracking: float = 0.6):
+        import config
         self._hands = mp.solutions.hands.Hands(
             static_image_mode=False,
             max_num_hands=max_hands,
+            model_complexity=config.MODEL_COMPLEXITY,  # 0=Lite (~2ms) vs 1=Full (~8ms)
             min_detection_confidence=min_detection,
             min_tracking_confidence=min_tracking,
         )
@@ -55,7 +57,10 @@ class HandTracker:
         Returns:
             HandData com coordenadas normalizadas, ou None.
         """
+        # Zero-copy: marcar como não-escrevível evita cópia interna do MediaPipe
+        frame_rgb.flags.writeable = False
         results = self._hands.process(frame_rgb)
+        frame_rgb.flags.writeable = True
 
         if not results.multi_hand_landmarks:
             return None

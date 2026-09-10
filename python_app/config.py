@@ -7,8 +7,14 @@
 # CÂMERA
 # -------------------------------------------------------------------------
 CAMERA_INDEX = 0          # Índice da câmera (0 = padrão do Mac)
-CAMERA_WIDTH = 1280       # 720p — sweet spot para MediaPipe
-CAMERA_HEIGHT = 720
+CAMERA_WIDTH = 640        # (Era 1280) 480p — MediaPipe funciona bem e processa 3-4× menos pixels
+CAMERA_HEIGHT = 480       # (Era 720) Redução significativa de CPU sem perda perceptível de precisão
+
+# -------------------------------------------------------------------------
+# PERFORMANCE
+# -------------------------------------------------------------------------
+MODEL_COMPLEXITY = 0      # Complexidade do modelo MediaPipe (0=Lite ~2ms, 1=Full ~8ms)
+TARGET_FPS = 30           # FPS alvo do loop principal (limita CPU quando câmera entrega mais)
 
 # -------------------------------------------------------------------------
 # MAPEAMENTO CÂMERA → TELA
