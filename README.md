@@ -19,7 +19,7 @@
 
 O **HandCursor** transforma a sua webcam em um dispositivo de controle: usando **visão computacional 3D** (Google MediaPipe), o aplicativo rastreia 21 pontos da sua mão em tempo real e converte gestos naturais em ações do sistema operacional — mover o cursor, clicar, arrastar, rolar e clicar com o botão direito.
 
-## ✨ Destaques
+##  Destaques
 
 - 🎯 **Precisão de clique** — cursor congela automaticamente durante o tap para evitar tremor
 - 🔥 **Duplo clique inteligente** — validação por tempo E distância, com posição travada
@@ -28,7 +28,7 @@ O **HandCursor** transforma a sua webcam em um dispositivo de controle: usando *
 - 🔊 **Feedback sonoro** — som nativo do macOS no clique (via `NSSound`)
 - 🛡️ **Safety release** — libera o mouse automaticamente se a mão sair do frame
 
-## 🤏 Gestos
+## Gestos
 
 A **Arquitetura Pinça**, inspirada no Apple Vision Pro, foi projetada para ser natural e fluida. O cursor rastreia o "centro da pinça" (ponto médio entre polegar e indicador), garantindo estabilidade.
 
@@ -41,7 +41,7 @@ A **Arquitetura Pinça**, inspirada no Apple Vision Pro, foi projetada para ser 
 | ✌️ | **Clique Direito** | Toque a ponta do dedo **Médio** com o **Polegar**. |
 | ✋ | **Scroll** | Abra a mão completamente (5 dedos esticados) por 300ms, depois mova para cima/baixo. Funciona como um joystick virtual. |
 
-> **💡 Configurável:** Você pode alterar o que cada gesto faz editando o `ACTION_MAP` no `config.py`.
+> ** Configurável:** Você pode alterar o que cada gesto faz editando o `ACTION_MAP` no `config.py`.
 
 ## 📦 Instalação
 
@@ -73,7 +73,7 @@ O HandCursor precisa de duas permissões para funcionar:
 
 > O aplicativo verifica automaticamente se as permissões estão concedidas e exibe um aviso no terminal caso estejam faltando.
 
-## 🚀 Uso
+## Uso
 
 ```bash
 # Modo padrão (sem janela visual)
@@ -126,7 +126,7 @@ Câmera (30fps) → MediaPipe (21 landmarks 3D)
 | **`mouse_injector`** | Injeta eventos nativos (`CGEventCreateMouseEvent`, `CGEventCreateScrollWheelEvent`) no macOS via `kCGHIDEventTap`. Feedback sonoro via `NSSound`. |
 | **`config`** | Ponto único de ajuste de todos os parâmetros do sistema. |
 
-## ⚙️ Configuração
+## Configuração
 
 Todos os parâmetros ficam em `config.py`. Aqui estão os mais importantes para ajuste fino:
 
@@ -181,7 +181,7 @@ Todos os parâmetros ficam em `config.py`. Aqui estão os mais importantes para 
 | Cliques falsos (phantom clicks) | Aumente `GESTURE_MIN_FRAMES` (ex: `3`) |
 | Câmera não abre | Tente `python3 main.py --camera 1` para webcam externa |
 
-## 🤝 Contribuições
+## Contribuições
 
 Contribuições são bem-vindas! Abra uma _Issue_ ou _Pull Request_.
 
